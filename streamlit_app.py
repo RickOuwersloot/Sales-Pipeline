@@ -2,13 +2,28 @@ import streamlit as st
 from streamlit_sortables import sort_items
 import uuid
 
-# --- 1. CONFIGURATIE (FORCEER WIDE MODE) ---
+# --- 1. CONFIGURATIE ---
 st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. CSS STYLING (HUFTERPROOF LAYOUT) ---
+# --- 2. CSS VOOR HORIZONTALE KOLOMMEN ---
 st.markdown("""
     <style>
-    /* Styling van de kaartjes zelf */
+    /* Zorg dat de kolommen NAAST elkaar staan (Flexbox) */
+    div[class*="stSortable"] {
+        display: flex;
+        flex-direction: row; 
+        gap: 15px;
+        overflow-x: auto;
+        padding-bottom: 20px;
+    }
+    
+    /* Zorg dat de kaartjes ONDER elkaar staan binnen de kolom */
+    div[class*="stSortable"] > div {
+        flex: 1; /* Elke kolom even breed */
+        min-width: 250px; /* Niet te smal worden */
+    }
+
+    /* Styling van de kaartjes */
     div[class*="stSortable"] > div > div > div {
         background-color: #262730 !important;
         color: #ffffff !important;
@@ -16,77 +31,71 @@ st.markdown("""
         border-radius: 6px !important;
         padding: 12px !important;
         margin-bottom: 8px !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
-    }
-    
-    /* CRUCIAAL: Zorg dat de kolommen naast elkaar blijven staan */
-    div[class*="stSortable"] {
-        display: flex;
-        flex-direction: row; 
-        gap: 10px;
-        overflow-x: auto;
-    }
-    
-    /* Headers mooi uitlijnen */
-    .kanban-header {
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 10px;
-        font-size: 1.1em;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. DATA LOGICA (UUID SYSTEEM) ---
+# --- 3. DATA & LOGICA ---
 def create_lead(company, contact, price, notes):
     return {
-        'id': str(uuid.uuid4()), # Uniek ID voor elk item
+        'id': str(uuid.uuid4()),
         'name': company,
         'contact': contact,
         'price': price,
         'notes': notes
     }
 
-# Initialiseer database als die leeg is
+# START LEEG (Zoals je vroeg)
 if 'leads_data' not in st.session_state:
     st.session_state['leads_data'] = {
-        'col1': [create_lead('Bakkerij Jansen', 'Peter', '€ 500', 'Interesse pui')],
-        'col2': [create_lead('Timmerbedrijf Hout', 'Sanne', '€ 1.200', 'Offerte 3 wanden')],
-        'col3': [],
-        'col4': [],
-        'trash': []
+        'col1': [], # Te benaderen
+        'col2': [], # Opgevolgd
+        'col3': [], # Geland
+        'col4': [], # Geen interesse
+        'trash': [] # Prullenbak
     }
 
-# --- 4. SIDEBAR: FORMULIER ---
+# --- 4. SIDEBAR (HET FORMULIER) ---
 with st.sidebar:
     st.header("➕ Nieuwe Deal")
+    # Gebruik een formulier zodat de pagina niet bij elke letter ververst
     with st.form("add_lead_form", clear_on_submit=True):
         company = st.text_input("Bedrijfsnaam")
         contact = st.text_input("Contactpersoon")
-        price = st.text_input("Waarde (bv. €1500)")
+        price = st.text_input("Waarde")
         notes = st.text_area("Notities")
+        
+        # De knop
         submitted = st.form_submit_button("Toevoegen")
         
-        if submitted and company:
-            # 1. Maak item
-            new_item = create_lead(company, contact, price, notes)
-            # 2. Voeg toe aan de EERSTE kolom (Te benaderen)
-            st.session_state['leads_data']['col1'].append(new_item)
-            # 3. Geef feedback en herlaad
-            st.success(f"Deal '{company}' toegevoegd!")
-            st.rerun()
+        if submitted:
+            if not company:
+                st.error("Vul in ieder geval een bedrijfsnaam in.")
+            else:
+                # MAAK ITEM
+                new_item = create_lead(company, contact, price, notes)
+                
+                # VOEG TOE AAN DE EERSTE LIJST
+                st.session_state['leads_data']['col1'].insert(0, new_item) # Vooraan toevoegen
+                
+                # MELDING & HERSTART
+                st.toast(f"✅ {company} is toegevoegd!")
+                st.rerun()
 
-    # Prullenbak Info
-    trash_len = len(st.session_state['leads_data']['trash'])
-    if trash_len > 0:
+    # Prullenbak knop
+    if len(st.session_state['leads_data']['trash']) > 0:
         st.divider()
-        st.warning(f"🗑️ {trash_len} items in prullenbak")
-        if st.button("Leeg Prullenbak Definitief"):
+        if st.button("🗑️ Prullenbak Legen"):
             st.session_state['leads_data']['trash'] = []
             st.rerun()
 
-# --- 5. HET BORD VOORBEREIDEN ---
+# --- 5. HET BORD ---
 st.title("🚀 Sales Pipeline")
+
+# Als er nog helemaal geen data is, toon een hulptekst
+total_items = sum(len(col) for col in st.session_state['leads_data'].values())
+if total_items == 0:
+    st.info("👈 Gebruik het menu links om je eerste bedrijf toe te voegen!")
 
 columns_config = [
     ('col1', 'Te benaderen'),
@@ -96,46 +105,50 @@ columns_config = [
     ('trash', 'Prullenbak 🗑️')
 ]
 
+# Data omzetten naar tekst voor de plugin
 kanban_data = []
 for db_key, display_name in columns_config:
     items = []
     for lead in st.session_state['leads_data'][db_key]:
-        # Opmaak
+        # Tekst op kaartje
         card_text = f"**{lead['name']}**\n👤 {lead['contact']} | 💰 {lead['price']}\n📝 {lead['notes']}"
         # ID verstoppen
-        full_item_string = f"{card_text}:::{lead['id']}"
-        items.append(full_item_string)
+        items.append(f"{card_text}:::{lead['id']}")
     
     kanban_data.append({'header': display_name, 'items': items})
 
-# --- 6. HET BORD TEKENEN ---
-# LET OP: direction='vertical' is de standaard voor items BINNEN een kolom.
-# De kolommen zelf komen naast elkaar door de 'layout="wide"' en multi_containers=True
-sorted_data = sort_items(kanban_data, multi_containers=True, key='final_board_v3')
+# HET BORD TEKENEN
+# Note: key verandert niet, zodat hij stabiel blijft.
+sorted_data = sort_items(kanban_data, multi_containers=True, key='main_board')
 
-# --- 7. DATA OPSLAAN BIJ SLEPEN ---
+# --- 6. UPDATE LOGICA (ALS JE SLEEPT) ---
+# Alleen uitvoeren als de gebruiker iets heeft verplaatst
 if len(sorted_data) == 5:
     new_state = {}
+    state_changed = False
     
-    # Zoek-tabel maken van alle leads op ID
-    all_leads_lookup = {}
+    # Zoeklijst maken
+    all_leads = {}
     for col in st.session_state['leads_data'].values():
         for lead in col:
-            all_leads_lookup[lead['id']] = lead
-
-    # Nieuwe indeling maken
+            all_leads[lead['id']] = lead
+            
+    # Nieuwe indeling bouwen
     for i, col_data in enumerate(sorted_data):
         db_key = columns_config[i][0]
-        new_items = []
+        new_col_items = []
+        
         for item_str in col_data['items']:
             parts = item_str.split(':::')
             if len(parts) > 1:
                 item_id = parts[-1]
-                if item_id in all_leads_lookup:
-                    new_items.append(all_leads_lookup[item_id])
-        new_state[db_key] = new_items
+                if item_id in all_leads:
+                    new_col_items.append(all_leads[item_id])
+        
+        new_state[db_key] = new_col_items
 
-    # Check op wijzigingen
+    # Check of er daadwerkelijk iets veranderd is ten opzichte van de huidige state
+    # (Dit voorkomt infinite reruns)
     current_ids = [[l['id'] for l in col] for col in st.session_state['leads_data'].values()]
     new_ids = [[l['id'] for l in col] for col in new_state.values()]
     
