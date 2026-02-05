@@ -51,9 +51,9 @@ with st.sidebar:
 # We maken hier "kaartjes" van de data.
 def get_card_labels(column_name):
     cards = []
-    for item in st.session_state['leads_data'][column_name]:
-        # Hoe het kaartje eruit ziet:
-        label = f"{item['name']} ({item['contact']})"
+    # We gebruiken 'enumerate' om elk kaartje een uniek nummer (i) te geven
+    for i, item in enumerate(st.session_state['leads_data'][column_name]):
+        label = f"{item['name']} ({item['contact']}) #{i+1}"
         if column_name == 'Opgevolgd' and item.get('tag'):
              label += f" - [{item['tag']}]"
         cards.append(label)
