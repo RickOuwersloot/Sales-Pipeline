@@ -1,9 +1,9 @@
 import streamlit as st
 from streamlit_sortables import sort_items
 import uuid
-import json # Nodig voor de nieuwe fix
+import json
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials # De nieuwe, moderne manier
 
 # --- 1. CONFIGURATIE ---
 st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
@@ -52,23 +52,29 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. GOOGLE SHEETS VERBINDING ---
+# --- 3. GOOGLE SHEETS VERBINDING (MODERNE VERSIE) ---
 @st.cache_resource
 def get_google_sheet():
     try:
-        # We halen de "ingepakte" tekst op uit secrets
+        # 1. Haal de tekst op uit Secrets
         json_text = st.secrets["service_account"]
         
-        # FIX: strict=False zorgt dat hij niet struikelt over 'enters' in de sleutel
+        # 2. Maak er een 'woordenboek' van (strict=False helpt tegen foutjes)
         creds_dict = json.loads(json_text, strict=False)
         
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        # 3. Verbinden met de nieuwe Google Auth tool
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         client = gspread.authorize(creds)
         
-        # Open de sheet (Let op de naam!)
+        # 4. Open de sheet
+        # LET OP: Zorg dat je Google Sheet PRECIES "MijnSalesCRM" heet (hoofdlettergevoelig!)
         sheet = client.open("MijnSalesCRM").sheet1 
         return sheet
+        
     except Exception as e:
         st.error(f"Fout bij verbinden met Google: {e}")
         return None
@@ -106,7 +112,6 @@ def load_data_from_sheet():
                 data_structure[col_key].append(lead)
         return data_structure
     except Exception as e:
-        # Als de sheet leeg is of headers mist, niet crashen
         return None
 
 def save_data_to_sheet(leads_data):
@@ -115,6 +120,7 @@ def save_data_to_sheet(leads_data):
         sheet = get_google_sheet()
         if not sheet: return
 
+        # De Koppen van je kolommen (Moet matchen met je Sheet!)
         rows_to_write = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Notities', 'ID']]
         
         col_map = {
