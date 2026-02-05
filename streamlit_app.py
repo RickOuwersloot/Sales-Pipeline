@@ -10,7 +10,7 @@ st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_s
 # --- 2. CSS STYLING (ALLEEN VOOR DE LAYOUT) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #1e1e1e; }
+    .stApp { background-color: #0E1117; }
 
     /* LAYOUT: Horizontale kolommen */
     div[class*="stSortable"] {
