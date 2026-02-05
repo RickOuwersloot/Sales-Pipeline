@@ -61,12 +61,17 @@ def get_card_labels(column_name):
 
 # --- HET KANBAN BORD (SLEPEN) ---
 # We halen de huidige status op
-kanban_data = {
-    'Te benaderen': get_card_labels('Te benaderen'),
-    'Opgevolgd': get_card_labels('Opgevolgd'),
-    'Geland': get_card_labels('Geland'),
-    'Geen interesse': get_card_labels('Geen interesse')
-}
+# --- HET KANBAN BORD (SLEPEN) ---
+# We maken een lijst van kolommen (headers) en items
+kanban_data = [
+    {'header': 'Te benaderen', 'items': get_card_labels('Te benaderen')},
+    {'header': 'Opgevolgd', 'items': get_card_labels('Opgevolgd')},
+    {'header': 'Geland', 'items': get_card_labels('Geland')},
+    {'header': 'Geen interesse', 'items': get_card_labels('Geen interesse')}
+]
+
+# Dit toont het bord en laat je slepen
+sorted_data = sort_items(kanban_data, multi_containers=True)
 
 # Dit toont het bord en laat je slepen
 sorted_data = sort_items(kanban_data, multi_containers=True)
