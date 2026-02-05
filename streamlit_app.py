@@ -74,7 +74,7 @@ kanban_data = [
 sorted_data = sort_items(kanban_data, multi_containers=True)
 
 # Dit toont het bord en laat je slepen
-sorted_data = sort_items(kanban_data, multi_containers=True)
+sorted_data = sort_items(kanban_data, multi_containers=True, key='mijn_bord')
 
 # --- LOGICA: TAGS TOEVOEGEN BIJ VERPLAATSING ---
 # Hier kijken we of er iets veranderd is door het slepen
