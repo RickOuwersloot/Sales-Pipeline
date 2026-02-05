@@ -8,9 +8,25 @@ from google.oauth2.service_account import Credentials
 # --- 1. CONFIGURATIE ---
 st.set_page_config(page_title="RO Marketing Pipeline", page_icon="Logo RO Marketing.png", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. CSS STYLING (THE BLUE FORCE FIX) ---
+# --- 2. CSS STYLING (THE BLUE FORCE FIX + FONTS) ---
 st.markdown("""
     <style>
+    /* A. FONTS IMPORTEREN */
+    @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
+
+    /* B. ALGEMENE STYLING (Alles wordt Montserrat) */
+    html, body, [class*="css"], .stApp, div, p, span, input, textarea, button, .stMarkdown {
+        font-family: 'Montserrat', sans-serif !important;
+    }
+
+    /* C. KOPTEKSTEN (Dela Gothic One) */
+    h1, h2, h3, .stHeading {
+        font-family: 'Dela Gothic One', cursive !important;
+        letter-spacing: 1px;
+        font-weight: 400 !important;
+    }
+
+    /* D. LAYOUT & KLEUREN */
     .stApp { background-color: #0E1117; }
     .block-container { max_width: 100% !important; padding: 2rem; }
     
@@ -36,13 +52,12 @@ st.markdown("""
         padding: 10px !important;
     }
     
-    /* --- HIER ZIT DE FIX VOOR DE RODE KAARTJES --- */
-    /* We targeten specifiek de kaartjes binnen de sortable div */
+    /* Kaartjes Styling */
     div[class*="stSortable"] > div > div {
-        background-color: #2b313e !important;   /* Donkerblauw/grijs (Geen Rood meer!) */
+        background-color: #2b313e !important;   /* Donkerblauw/grijs */
         color: white !important;                 /* Witte tekst */
-        border: 1px solid #2196F3 !important;    /* Blauwe rand rondom */
-        border-left: 6px solid #2196F3 !important; /* Dikke blauwe balk links */
+        border: 1px solid #2196F3 !important;    /* Blauwe rand */
+        border-left: 6px solid #2196F3 !important; 
         border-radius: 6px !important;
         padding: 12px !important;
         margin-bottom: 8px !important;
@@ -50,10 +65,10 @@ st.markdown("""
         font-weight: 500 !important;
     }
     
-    /* Als je eroverheen muist */
+    /* Hover effect */
     div[class*="stSortable"] > div > div:hover {
-        background-color: #363c4e !important;    /* Iets lichter blauw bij hover */
-        border-color: #64b5f6 !important;        /* Lichtere rand */
+        background-color: #363c4e !important;
+        border-color: #64b5f6 !important;
         transform: translateY(-2px);
     }
     </style>
@@ -274,7 +289,8 @@ if len(all_leads_list) > 0:
                 c1, c2 = st.columns(2)
                 with c1:
                     st.markdown(f"### {sel_deal['name']}")
-                    st.write(f"**Waarde:** {sel_deal['price']}")
+                    # HIER IS HET AANGEPAST: Grote prijs, groen, geen label
+                    st.markdown(f"<h1 style='color: #4CAF50; font-size: 2.5rem; margin-top: -10px;'>{sel_deal['price']}</h1>", unsafe_allow_html=True)
                 with c2:
                     st.write(f"👤 **{sel_deal.get('contact', '-')}")
                     st.write(f"📧 {sel_deal.get('email', '-')}")
