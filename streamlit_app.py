@@ -13,19 +13,34 @@ st.set_page_config(
     initial_sidebar_state="auto" 
 )
 
-# --- 2. CSS STYLING (DE VERFROLLER FIX 🖌️) ---
+# --- 2. CSS STYLING (MET DE ICON FIX 🛠️) ---
 st.markdown("""
     <style>
     /* A. FONTS IMPORTEREN */
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
 
     /* B. ALGEMENE STYLING */
+    /* We zetten de basis op Montserrat */
     .stApp { font-family: 'Montserrat', sans-serif !important; }
-    p, input, textarea, .stMarkdown { font-family: 'Montserrat', sans-serif !important; }
-    /* Alleen tekst in knoppen, niet de icoontjes */
-    .stButton > button p { font-family: 'Montserrat', sans-serif !important; }
+    
+    /* Specifieke elementen */
+    p, input, textarea, .stMarkdown, h1, h2, h3, h4, h5, h6 { 
+        font-family: 'Montserrat', sans-serif !important; 
+    }
+    
+    /* --- DE "ICON SAVER" FIX --- */
+    /* Dit zorgt ervoor dat knoppen en icoontjes hun eigen plaatjes mogen houden */
+    button, i, span[class^="material-symbols"] {
+        font-family: inherit !important;
+    }
+    
+    /* Specifiek voor de sidebar toggle knop (die met de dubbele pijltjes) */
+    [data-testid="stSidebarCollapsedControl"] button,
+    [data-testid="stSidebarCollapsedControl"] span {
+        font-family: sans-serif !important; /* Terug naar standaard voor icoontjes */
+    }
 
-    /* C. KOPTEKSTEN */
+    /* C. KOPTEKSTEN (Dela Gothic One) */
     h1, h2, h3, .stHeading, .st-emotion-cache-10trblm {
         font-family: 'Dela Gothic One', cursive !important;
         letter-spacing: 1px;
@@ -66,10 +81,7 @@ st.markdown("""
         padding: 10px !important;
     }
     
-    /* H. DE KAARTJES (DE HARDE FIX) */
-    /* We gebruiken nu een spatie in plaats van >. 
-       Dit betekent: "Pak ELK divje dat ergens binnen de sortable lijst zit". */
-    
+    /* H. DE KAARTJES (DE HARDE BLAUWE FIX) */
     div[class*="stSortable"] div {
         background-color: #2b313e !important;   /* Forceer Donkerblauw overal */
         color: white !important;                 /* Forceer Witte tekst overal */
