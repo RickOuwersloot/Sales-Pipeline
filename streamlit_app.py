@@ -11,7 +11,7 @@ st.set_page_config(page_title="RO Marketing Pipeline", layout="wide", initial_si
 # --- 2. CSS STYLING ---
 st.markdown("""
     <style>
-    .stApp { background-color: #0E1117; }
+    .stApp { background-color: #1e1e1e; }
     .block-container { max_width: 100% !important; padding: 2rem; }
     
     /* Layout: Banen naast elkaar */
@@ -35,11 +35,12 @@ st.markdown("""
         border-radius: 10px !important;
         padding: 10px !important;
     }
-    /* Kaartjes */
+    /* Kaartjes - NU MET BLAUWE RAND */
     div[class*="stSortable"] > div > div {
         background-color: #3b3d45 !important;
         color: white !important;
-        border-left: 4px solid #ff4b4b !important;
+        /* HIER IS DE KLEUR AANGEPAST VAN ROOD NAAR BLAUW */
+        border-left: 4px solid #2196F3 !important; 
         border-radius: 6px !important;
         padding: 12px !important;
         margin-bottom: 8px !important;
@@ -158,10 +159,9 @@ def create_lead_obj(company, contact, email, phone, price, notes):
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
-    # --- HIER IS JE LOGO ---
-    # We proberen het logo te tonen, als het bestand nog niet bestaat geven we geen foutmelding
+    # --- LOGO AANGEPAST: NU KLEINER (width=150) ---
     try:
-        st.image("Logo RO Marketing.png", use_container_width=True)
+        st.image("Logo RO Marketing.png", width=150)
     except:
         st.warning("Upload 'Logo RO Marketing.png' naar GitHub!")
 
