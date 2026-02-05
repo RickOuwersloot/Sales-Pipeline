@@ -1,12 +1,13 @@
 import streamlit as st
 from streamlit_sortables import sort_items
 import uuid
+import json
+import os
 
 # --- 1. CONFIGURATIE ---
 st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. CSS VOOR ACHTERGROND & BORDERS ---
-# Dit is voor de styling 'om' de app heen
+# --- 2. CSS LAYOUT (DEFINITIEVE VERSIE) ---
 st.markdown("""
     <style>
     .stApp {
@@ -15,7 +16,25 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. DATA & LOGICA ---
+# --- 3. DATABASE FUNCTIES (OPSLAAN & LADEN) ---
+DATA_FILE = "leads_database.json"
+
+def load_data():
+    """Lees de database uit het bestand als het bestaat."""
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r") as f:
+                return json.load(f)
+        except:
+            return None # Bestand corrupt of leeg
+    return None
+
+def save_data(data):
+    """Schrijf de data direct naar het bestand."""
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f)
+
+# --- 4. DATA INITIALISATIE ---
 def create_lead(company, contact, price, notes):
     return {
         'id': str(uuid.uuid4()),
@@ -25,21 +44,26 @@ def create_lead(company, contact, price, notes):
         'notes': notes
     }
 
-# Start Data
+# We kijken eerst of er een opgeslagen bestand is
 if 'leads_data' not in st.session_state:
-    st.session_state['leads_data'] = {
-        'col1': [], 
-        'col2': [], 
-        'col3': [], 
-        'col4': [], 
-        'trash': []
-    }
+    saved_data = load_data()
+    if saved_data:
+        st.session_state['leads_data'] = saved_data
+        st.toast("📂 Oude gegevens geladen!")
+    else:
+        # Start met lege indeling als er niks is
+        st.session_state['leads_data'] = {
+            'col1': [], 
+            'col2': [], 
+            'col3': [], 
+            'col4': [], 
+            'trash': []
+        }
 
-# Refresh teller
 if 'board_key' not in st.session_state:
     st.session_state['board_key'] = 0
 
-# --- 4. SIDEBAR (FORMULIER) ---
+# --- 5. SIDEBAR (FORMULIER) ---
 with st.sidebar:
     st.header("➕ Nieuwe Deal")
     with st.form("add_lead_form", clear_on_submit=True):
@@ -55,6 +79,10 @@ with st.sidebar:
             else:
                 new_item = create_lead(company, contact, price, notes)
                 st.session_state['leads_data']['col1'].insert(0, new_item)
+                
+                # DIRECT OPSLAAN
+                save_data(st.session_state['leads_data'])
+                
                 st.session_state['board_key'] += 1
                 st.rerun()
 
@@ -62,10 +90,14 @@ with st.sidebar:
         st.divider()
         if st.button("🗑️ Prullenbak Legen"):
             st.session_state['leads_data']['trash'] = []
+            
+            # DIRECT OPSLAAN
+            save_data(st.session_state['leads_data'])
+            
             st.session_state['board_key'] += 1
             st.rerun()
 
-# --- 5. HET BORD ---
+# --- 6. HET BORD ---
 st.title("🚀 Sales Pipeline")
 
 columns_config = [
@@ -80,15 +112,12 @@ kanban_data = []
 for db_key, display_name in columns_config:
     items = []
     for lead in st.session_state['leads_data'][db_key]:
-        # GEEN HTML MEER, MAAR MARKDOWN
-        # Dit werkt gegarandeerd.
+        # Markdown layout (Veilig & Netjes)
         card_text = f"**{lead['name']}**\n👤 {lead['contact']} | 💰 {lead['price']}\n📝 {lead['notes']}"
         items.append(f"{card_text}:::{lead['id']}")
     kanban_data.append({'header': display_name, 'items': items})
 
-# --- DE LAYOUT FIX ---
-# We gebruiken CamelCase keys (flexDirection ipv flex-direction).
-# Dit is de taal die de plugin begrijpt zonder error #31 te geven.
+# CSS voor Horizontale Layout (CamelCase voor React)
 custom_css = {
     "container": {
         "display": "flex",
@@ -109,15 +138,14 @@ custom_css = {
     }
 }
 
-# HET BORD TEKENEN
 sorted_data = sort_items(
     kanban_data, 
     multi_containers=True, 
-    custom_style=custom_css, # Nu met de juiste sleutels
+    custom_style=custom_css,
     key=f"board_{st.session_state['board_key']}"
 )
 
-# --- 6. UPDATE LOGICA ---
+# --- 7. UPDATE LOGICA & OPSLAAN ---
 if len(sorted_data) == 5:
     new_state = {}
     all_leads = {}
@@ -141,4 +169,8 @@ if len(sorted_data) == 5:
     
     if current_ids != new_ids:
         st.session_state['leads_data'] = new_state
+        
+        # DIRECT OPSLAAN BIJ ELKE VERPLAATSING
+        save_data(new_state)
+        
         st.rerun()
