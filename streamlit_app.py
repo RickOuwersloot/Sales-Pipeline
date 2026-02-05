@@ -1,108 +1,162 @@
 import streamlit as st
 from streamlit_sortables import sort_items
 import uuid
-import json
-import os
+import json # Nodig voor de nieuwe fix
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 # --- 1. CONFIGURATIE ---
 st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. AGRESSIEVE CSS STYLING ---
+# --- 2. CSS STYLING ---
 st.markdown("""
     <style>
-    /* 1. Achtergrond */
     .stApp { background-color: #1e1e1e; }
+    .block-container { max_width: 100% !important; padding: 2rem; }
     
-    /* 2. Maak de app breder zodat de kolommen passen */
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-        padding-left: 2rem;
-        padding-right: 2rem;
-        max-width: 100% !important;
-    }
-
-    /* 3. DE LAYOUT FIX (DIT IS DE BELANGRIJKSTE) 
-       We targeten ELKE div die lijkt op de sortable container.
-    */
+    /* Layout: Banen naast elkaar */
     div[class*="stSortable"] {
         display: flex !important;
-        flex-direction: row !important; /* Dwingt horizontaal */
-        flex-wrap: nowrap !important;   /* Verbiedt naar de volgende regel gaan */
-        overflow-x: auto !important;    /* Scrollbalk als het niet past */
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
         align-items: flex-start !important;
         gap: 15px !important;
         padding-bottom: 20px !important;
-        width: 100% !important;
     }
-    
-    /* 4. De Kolommen (De "Banen") */
     div[class*="stSortable"] > div {
         display: flex !important;
         flex-direction: column !important;
-        flex: 0 0 auto !important;      /* NIET krimpen, NIET groeien */
-        width: 300px !important;        /* HARDE BREEDTE: 300px */
+        flex: 0 0 auto !important;
+        width: 300px !important;
         min-width: 300px !important;
-        
         background-color: #25262b !important;
         border: 1px solid #333 !important;
         border-radius: 10px !important;
         padding: 10px !important;
-        margin-right: 10px !important;
     }
-
-    /* 5. De Kaartjes */
+    /* Kaartjes */
     div[class*="stSortable"] > div > div {
         background-color: #3b3d45 !important;
         color: white !important;
+        border-left: 4px solid #ff4b4b !important;
         border-radius: 6px !important;
         padding: 12px !important;
         margin-bottom: 8px !important;
-        border-left: 4px solid #ff4b4b !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
-        white-space: normal !important; /* Tekst mag wel wrappen IN het kaartje */
     }
-    
-    /* Hover effect */
     div[class*="stSortable"] > div > div:hover {
         background-color: #454752 !important;
         transform: translateY(-2px);
-        transition: all 0.2s ease;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. DATABASE FUNCTIES ---
-DATA_FILE = "leads_database.json"
-
-def load_data():
-    if os.path.exists(DATA_FILE):
-        try:
-            with open(DATA_FILE, "r") as f: return json.load(f)
-        except: return None
-    return None
-
-def save_data(data):
+# --- 3. GOOGLE SHEETS VERBINDING (DE FIX) ---
+@st.cache_resource
+def get_google_sheet():
+    # HIER IS DE WIJZIGING: We lezen de string en maken er JSON van
     try:
-        with open(DATA_FILE, "w") as f: json.dump(data, f)
-    except: pass
+        # We halen de "ingepakte" tekst op uit secrets
+        json_text = st.secrets["service_account"]
+        # We pakken hem uit naar een echt object
+        creds_dict = json.loads(json_text)
+        
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+        client = gspread.authorize(creds)
+        
+        # Open de sheet (Zorg dat de naam "MijnSalesCRM" klopt met jouw bestand!)
+        sheet = client.open("MijnSalesCRM").sheet1 
+        return sheet
+    except Exception as e:
+        st.error(f"Fout bij verbinden met Google: {e}")
+        return None
+
+def load_data_from_sheet():
+    """Haalt alle data op en sorteert het in kolommen voor de app"""
+    try:
+        sheet = get_google_sheet()
+        if not sheet: return None
+        
+        records = sheet.get_all_records()
+        
+        data_structure = {
+            'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []
+        }
+        
+        status_map = {
+            'Te benaderen': 'col1', 'Opgevolgd': 'col2',
+            'Geland': 'col3', 'Geen interesse': 'col4', 'Prullenbak': 'trash'
+        }
+        
+        for row in records:
+            if row.get('Bedrijf'):
+                lead = {
+                    'id': str(row.get('ID', uuid.uuid4())),
+                    'name': row.get('Bedrijf'),
+                    'price': row.get('Prijs'),
+                    'contact': row.get('Contact'),
+                    'email': row.get('Email'),
+                    'phone': row.get('Telefoon'),
+                    'notes': row.get('Notities')
+                }
+                status = row.get('Status', 'Te benaderen')
+                col_key = status_map.get(status, 'col1')
+                data_structure[col_key].append(lead)
+        return data_structure
+    except Exception as e:
+        # Als de sheet leeg is of headers mist, niet crashen
+        return None
+
+def save_data_to_sheet(leads_data):
+    """Zet de data om naar rijen en overschrijft de Google Sheet"""
+    try:
+        sheet = get_google_sheet()
+        if not sheet: return
+
+        rows_to_write = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Notities', 'ID']]
+        
+        col_map = {
+            'col1': 'Te benaderen', 'col2': 'Opgevolgd',
+            'col3': 'Geland', 'col4': 'Geen interesse', 'trash': 'Prullenbak'
+        }
+        
+        for col_key, items in leads_data.items():
+            status_text = col_map.get(col_key, 'Te benaderen')
+            for item in items:
+                row = [
+                    status_text,
+                    item.get('name', ''), item.get('price', ''),
+                    item.get('contact', ''), item.get('email', ''),
+                    item.get('phone', ''), item.get('notes', ''),
+                    item.get('id', str(uuid.uuid4()))
+                ]
+                rows_to_write.append(row)
+        
+        sheet.clear()
+        sheet.update(rows_to_write)
+    except Exception as e:
+        st.error(f"Kon niet opslaan: {e}")
 
 # --- 4. INITIALISATIE ---
-def create_lead(company, contact, email, phone, price, notes):
+if 'leads_data' not in st.session_state:
+    with st.spinner('Verbinding maken met Google Sheets...'):
+        loaded = load_data_from_sheet()
+        if loaded:
+            st.session_state['leads_data'] = loaded
+        else:
+            st.session_state['leads_data'] = {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
+
+if 'board_key' not in st.session_state:
+    st.session_state['board_key'] = 0
+
+def create_lead_obj(company, contact, email, phone, price, notes):
     return {
         'id': str(uuid.uuid4()),
         'name': company, 'contact': contact, 'email': email, 
         'phone': phone, 'price': price, 'notes': notes
     }
-
-if 'leads_data' not in st.session_state:
-    saved_data = load_data()
-    st.session_state['leads_data'] = saved_data if saved_data else {
-        'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []
-    }
-
-if 'board_key' not in st.session_state:
-    st.session_state['board_key'] = 0
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
@@ -121,9 +175,9 @@ with st.sidebar:
             if not company:
                 st.error("Vul een naam in!")
             else:
-                new_item = create_lead(company, contact, email, phone, price, notes)
+                new_item = create_lead_obj(company, contact, email, phone, price, notes)
                 st.session_state['leads_data']['col1'].insert(0, new_item)
-                save_data(st.session_state['leads_data'])
+                save_data_to_sheet(st.session_state['leads_data'])
                 st.session_state['board_key'] += 1
                 st.rerun()
 
@@ -131,9 +185,15 @@ with st.sidebar:
         st.divider()
         if st.button("🗑️ Prullenbak Legen"):
             st.session_state['leads_data']['trash'] = []
-            save_data(st.session_state['leads_data'])
+            save_data_to_sheet(st.session_state['leads_data'])
             st.session_state['board_key'] += 1
             st.rerun()
+            
+    st.divider()
+    if st.button("🔄 Herlaad data uit Sheet"):
+        st.cache_resource.clear()
+        if 'leads_data' in st.session_state: del st.session_state['leads_data']
+        st.rerun()
 
 # --- 6. HET BORD ---
 st.title("🚀 Sales Pipeline")
@@ -153,14 +213,11 @@ for db_key, display_name in columns_config:
     items = []
     for lead in st.session_state['leads_data'][db_key]:
         price_part = f" | {lead['price']}" if lead['price'] else ""
-        # We voegen wat witregels toe om het kaartje 'body' te geven
         card_text = f"{lead['name']}{price_part}"
         items.append(card_text)
         all_leads_list.append(lead)
-        
     kanban_data.append({'header': display_name, 'items': items})
 
-# Bord tekenen
 sorted_data = sort_items(
     kanban_data, 
     multi_containers=True, 
@@ -171,6 +228,7 @@ sorted_data = sort_items(
 if len(sorted_data) == 5:
     new_state = {}
     lead_lookup = {}
+    
     for lead in all_leads_list:
         price_part = f" | {lead['price']}" if lead['price'] else ""
         key = f"{lead['name']}{price_part}"
@@ -189,7 +247,7 @@ if len(sorted_data) == 5:
     
     if current_ids != new_ids:
         st.session_state['leads_data'] = new_state
-        save_data(new_state)
+        save_data_to_sheet(new_state)
         st.rerun()
 
 # --- 8. DETAILS ---
@@ -198,22 +256,22 @@ if len(all_leads_list) > 0:
     st.subheader("📋 Deal Details")
     deal_options = {f"{l['name']}": l['id'] for l in all_leads_list}
     
-    col_sel, col_info = st.columns([1, 2])
-    with col_sel:
-        selected_deal_name = st.selectbox("Selecteer deal:", list(deal_options.keys()))
-        selected_id = deal_options[selected_deal_name]
-        selected_deal = next((l for l in all_leads_list if l['id'] == selected_id), None)
+    c_sel, c_inf = st.columns([1, 2])
+    with c_sel:
+        sel_name = st.selectbox("Selecteer:", list(deal_options.keys()))
+        sel_id = deal_options[sel_name]
+        sel_deal = next((l for l in all_leads_list if l['id'] == sel_id), None)
     
-    if selected_deal:
-        with col_info:
+    if sel_deal:
+        with c_inf:
             with st.container(border=True):
                 c1, c2 = st.columns(2)
                 with c1:
-                    st.markdown(f"### {selected_deal['name']}")
-                    st.write(f"**Waarde:** {selected_deal['price']}")
+                    st.markdown(f"### {sel_deal['name']}")
+                    st.write(f"**Waarde:** {sel_deal['price']}")
                 with c2:
-                    st.write(f"👤 **{selected_deal.get('contact', '-')}")
-                    st.write(f"📧 {selected_deal.get('email', '-')}")
-                    st.write(f"☎️ {selected_deal.get('phone', '-')}")
+                    st.write(f"👤 **{sel_deal.get('contact', '-')}")
+                    st.write(f"📧 {sel_deal.get('email', '-')}")
+                    st.write(f"☎️ {sel_deal.get('phone', '-')}")
                 st.markdown("---")
-                st.info(selected_deal['notes'] if selected_deal['notes'] else "Geen notities.")
+                st.info(sel_deal['notes'] if sel_deal['notes'] else "Geen notities.")
