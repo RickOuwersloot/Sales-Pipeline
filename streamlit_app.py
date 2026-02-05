@@ -13,29 +13,18 @@ st.set_page_config(
     initial_sidebar_state="auto" 
 )
 
-# --- 2. CSS STYLING (THE ICON SAVER FIX) ---
+# --- 2. CSS STYLING ---
 st.markdown("""
     <style>
     /* A. FONTS IMPORTEREN */
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
 
-    /* B. ALGEMENE STYLING (Veilige modus) */
-    /* We zetten het font op de hele app, maar forceren het niet op icoontjes (span/i) */
-    .stApp {
-        font-family: 'Montserrat', sans-serif !important;
-    }
-    
-    /* Specifiek tekst elementen die wel Montserrat moeten zijn */
-    p, input, textarea, .stMarkdown {
-        font-family: 'Montserrat', sans-serif !important;
-    }
-    
-    /* Knoppen tekst (maar niet de icoontjes erin) */
-    .stButton > button p {
-        font-family: 'Montserrat', sans-serif !important;
-    }
+    /* B. ALGEMENE STYLING (Veilige modus voor icoontjes) */
+    .stApp { font-family: 'Montserrat', sans-serif !important; }
+    p, input, textarea, .stMarkdown { font-family: 'Montserrat', sans-serif !important; }
+    .stButton > button p { font-family: 'Montserrat', sans-serif !important; }
 
-    /* C. KOPTEKSTEN (Dela Gothic One) */
+    /* C. KOPTEKSTEN */
     h1, h2, h3, .stHeading, .st-emotion-cache-10trblm {
         font-family: 'Dela Gothic One', cursive !important;
         letter-spacing: 1px;
@@ -46,7 +35,13 @@ st.markdown("""
     .stApp { background-color: #0E1117; }
     .block-container { max_width: 100% !important; padding: 2rem; }
     
-    /* Layout: Banen naast elkaar */
+    /* E. SIDEBAR BREEDTE (HIER PAS JE HEM AAN!) */
+    section[data-testid="stSidebar"] {
+        width: 400px !important; /* Pas dit getal aan (bv. 350px, 450px) */
+        min-width: 400px !important;
+    }
+
+    /* F. KANBAN LAYOUT */
     div[class*="stSortable"] {
         display: flex !important;
         flex-direction: row !important;
@@ -68,7 +63,7 @@ st.markdown("""
         padding: 10px !important;
     }
     
-    /* Kaartjes Styling */
+    /* G. KAARTJES STYLING */
     div[class*="stSortable"] > div > div {
         background-color: #2b313e !important;
         color: white !important;
@@ -81,7 +76,6 @@ st.markdown("""
         font-weight: 500 !important;
     }
     
-    /* Hover effect */
     div[class*="stSortable"] > div > div:hover {
         background-color: #363c4e !important;
         border-color: #64b5f6 !important;
