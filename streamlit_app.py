@@ -202,7 +202,7 @@ with st.sidebar:
         st.rerun()
 
 # --- 6. HET BORD ---
-st.title("🚀 Sales Pipeline")
+st.title("🚀 RO Marketing Sales Pipeline")
 
 columns_config = [
     ('col1', 'Te benaderen'),
