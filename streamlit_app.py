@@ -11,7 +11,7 @@ st.set_page_config(page_title="RO Marketing Pipeline", page_icon="Logo RO Market
 # --- 2. CSS STYLING (THE BLUE FORCE FIX) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #1e1e1e; }
+    .stApp { background-color: #0E1117; }
     .block-container { max_width: 100% !important; padding: 2rem; }
     
     /* Layout: Banen naast elkaar */
