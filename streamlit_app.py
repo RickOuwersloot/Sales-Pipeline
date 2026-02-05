@@ -6,7 +6,7 @@ import gspread
 from google.oauth2.service_account import Credentials # De nieuwe, moderne manier
 
 # --- 1. CONFIGURATIE ---
-st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="RO Marketing | Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
 
 # --- 2. CSS STYLING ---
 st.markdown("""
