@@ -5,8 +5,13 @@ import json
 import gspread
 from google.oauth2.service_account import Credentials
 
-# --- 1. CONFIGURATIE ---
-st.set_page_config(page_title="RO Marketing Pipeline", page_icon="Logo RO Marketing.png", layout="wide", initial_sidebar_state="expanded")
+# --- 1. CONFIGURATIE (AANGEPAST: sidebar_state="auto" stopt het verspringen) ---
+st.set_page_config(
+    page_title="RO Marketing Pipeline", 
+    page_icon="Logo RO Marketing.png", 
+    layout="wide", 
+    initial_sidebar_state="auto" 
+)
 
 # --- 2. CSS STYLING (THE BLUE FORCE FIX + FONTS) ---
 st.markdown("""
@@ -14,26 +19,14 @@ st.markdown("""
     /* A. FONTS IMPORTEREN */
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
 
-    /* B. ALGEMENE STYLING (Alles wordt Montserrat) */
+    /* B. ALGEMENE STYLING */
     html, body, [class*="css"], .stApp, div, p, span, input, textarea, button, .stMarkdown {
         font-family: 'Montserrat', sans-serif !important;
     }
- /* C. KOPTEKSTEN (Dela Gothic One) */
-    h1, h2, h3, .st.title {
-        font-family: 'Dela Gothic One', cursive !important;
-        letter-spacing: 1px;
-        font-weight: 400 !important;
-    }
-    
-    /* C. KOPTEKSTEN (Dela Gothic One) */
-    h1, h2, h3, .stHeading {
-        font-family: 'Dela Gothic One', cursive !important;
-        letter-spacing: 1px;
-        font-weight: 400 !important;
-    }
 
-    h1, h2, h3, .st.subheader{
-     font-family: 'Dela Gothic One', cursive !important;
+    /* C. KOPTEKSTEN */
+    h1, h2, h3, .stHeading, .st-emotion-cache-10trblm {
+        font-family: 'Dela Gothic One', cursive !important;
         letter-spacing: 1px;
         font-weight: 400 !important;
     }
@@ -66,9 +59,9 @@ st.markdown("""
     
     /* Kaartjes Styling */
     div[class*="stSortable"] > div > div {
-        background-color: #2b313e !important;   /* Donkerblauw/grijs */
-        color: white !important;                 /* Witte tekst */
-        border: 1px solid #2196F3 !important;    /* Blauwe rand */
+        background-color: #2b313e !important;
+        color: white !important;
+        border: 1px solid #2196F3 !important;
         border-left: 6px solid #2196F3 !important; 
         border-radius: 6px !important;
         padding: 12px !important;
@@ -107,6 +100,58 @@ def get_google_sheet():
         st.error(f"Fout bij verbinden met Google: {e}")
         return None
 
+# --- CRUCIAAL: DEZE FUNCTIE MOET BLIJVEN VOOR JE NIEUWE LEADS! ---
+def fix_missing_ids():
+    """Checkt de sheet op lege IDs en vult ze in."""
+    try:
+        sheet = get_google_sheet()
+        if not sheet: return
+        
+        records = sheet.get_all_records()
+        # Headers opnieuw definiëren voor de zekerheid
+        updated_rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Notities', 'ID']]
+        
+        existing_ids = set()
+        changes_made = False
+        
+        for row in records:
+            current_id = str(row.get('ID', '')).strip()
+            
+            # Als ID leeg is OF al bestaat -> Nieuwe maken
+            if not current_id or current_id in existing_ids:
+                new_id = str(uuid.uuid4())
+                row['ID'] = new_id
+                changes_made = True
+            else:
+                new_id = current_id
+                
+            existing_ids.add(new_id)
+            
+            # Rij toevoegen aan update lijst
+            updated_rows.append([
+                row.get('Status', 'Te benaderen'),
+                row.get('Bedrijf', ''),
+                row.get('Prijs', ''),
+                row.get('Contact', ''),
+                row.get('Email', ''),
+                row.get('Telefoon', ''),
+                row.get('Notities', ''),
+                new_id
+            ])
+            
+        if changes_made:
+            sheet.clear()
+            sheet.update(updated_rows)
+            st.success("✅ IDs gerepareerd! De app herlaadt nu...")
+            st.cache_resource.clear()
+            if 'leads_data' in st.session_state: del st.session_state['leads_data']
+            st.rerun()
+        else:
+            st.toast("👍 Alle IDs waren al in orde.")
+            
+    except Exception as e:
+        st.error(f"Fout bij repareren: {e}")
+
 def load_data_from_sheet():
     try:
         sheet = get_google_sheet()
@@ -123,8 +168,12 @@ def load_data_from_sheet():
         
         for row in records:
             if row.get('Bedrijf'):
+                # Veiligheidscheck tijdens laden
+                raw_id = str(row.get('ID', '')).strip()
+                safe_id = raw_id if raw_id else str(uuid.uuid4())
+                
                 lead = {
-                    'id': str(row.get('ID', uuid.uuid4())),
+                    'id': safe_id,
                     'name': row.get('Bedrijf'),
                     'price': row.get('Prijs'),
                     'contact': row.get('Contact'),
@@ -191,28 +240,31 @@ with st.sidebar:
     try:
         st.image("Logo RO Marketing.png", width=150)
     except:
-        st.warning("Upload 'Logo RO Marketing.png' naar GitHub!")
+        st.warning("Logo uploaden!")
 
-    st.header("➕ Nieuwe Deal")
-    with st.form("add_lead_form", clear_on_submit=True):
-        company = st.text_input("Bedrijfsnaam *")
-        contact = st.text_input("Contactpersoon")
-        email = st.text_input("Emailadres")
-        phone = st.text_input("Telefoonnummer")
-        price = st.text_input("Waarde (bv. €1500)")
-        notes = st.text_area("Notities")
-        
-        submitted = st.form_submit_button("Toevoegen")
-        
-        if submitted:
-            if not company:
-                st.error("Vul een naam in!")
-            else:
-                new_item = create_lead_obj(company, contact, email, phone, price, notes)
-                st.session_state['leads_data']['col1'].insert(0, new_item)
-                save_data_to_sheet(st.session_state['leads_data'])
-                st.session_state['board_key'] += 1
-                st.rerun()
+    # --- HIER IS DE FIX VOOR HET "GEKKE KNOPJE" ---
+    # We stoppen het formulier in een Expander. 
+    # Zo is het formulier standaard 'dicht' en klik je het open wanneer je wilt.
+    with st.expander("➕ Nieuwe Deal Toevoegen", expanded=True):
+        with st.form("add_lead_form", clear_on_submit=True):
+            company = st.text_input("Bedrijfsnaam *")
+            contact = st.text_input("Contactpersoon")
+            email = st.text_input("Emailadres")
+            phone = st.text_input("Telefoonnummer")
+            price = st.text_input("Waarde (bv. €1500)")
+            notes = st.text_area("Notities")
+            
+            submitted = st.form_submit_button("Toevoegen")
+            
+            if submitted:
+                if not company:
+                    st.error("Vul een naam in!")
+                else:
+                    new_item = create_lead_obj(company, contact, email, phone, price, notes)
+                    st.session_state['leads_data']['col1'].insert(0, new_item)
+                    save_data_to_sheet(st.session_state['leads_data'])
+                    st.session_state['board_key'] += 1
+                    st.rerun()
 
     if len(st.session_state['leads_data']['trash']) > 0:
         st.divider()
@@ -223,10 +275,17 @@ with st.sidebar:
             st.rerun()
             
     st.divider()
-    if st.button("🔄 Herlaad data uit Sheet"):
-        st.cache_resource.clear()
-        if 'leads_data' in st.session_state: del st.session_state['leads_data']
-        st.rerun()
+    
+    # --- DE KNOPPEN ZIJN WEER TERUG ---
+    col_ref, col_fix = st.columns(2)
+    with col_ref:
+        if st.button("🔄 Reload"):
+            st.cache_resource.clear()
+            if 'leads_data' in st.session_state: del st.session_state['leads_data']
+            st.rerun()
+    with col_fix:
+        if st.button("🛠️ Fix IDs"):
+            fix_missing_ids()
 
 # --- 6. HET BORD ---
 st.title("🚀 RO Marketing Sales Pipeline")
@@ -283,7 +342,7 @@ if len(sorted_data) == 5:
         save_data_to_sheet(new_state)
         st.rerun()
 
-# --- 8. DETAILS (MET NIEUW FILTER!) ---
+# --- 8. DETAILS ---
 st.divider()
 if len(all_leads_list) > 0:
     st.subheader("📋 Deal Details")
@@ -291,21 +350,17 @@ if len(all_leads_list) > 0:
     c_sel, c_inf = st.columns([1, 2])
     
     with c_sel:
-        # --- NIEUW: Filter Dropdown ---
         filter_options = ["Alles tonen"] + [name for _, name in columns_config]
         selected_filter = st.selectbox("🔍 Filter op fase:", filter_options)
         
-        # Filter de lijst op basis van keuze
         filtered_leads = []
         if selected_filter == "Alles tonen":
             filtered_leads = all_leads_list
         else:
-            # Zoek de juiste kolom code bij de naam
             target_col_key = next((k for k, n in columns_config if n == selected_filter), None)
             if target_col_key:
                 filtered_leads = st.session_state['leads_data'][target_col_key]
 
-        # Maak de opties voor de deal-selectie op basis van het filter
         deal_options = {f"{l['name']}": l['id'] for l in filtered_leads}
         
         if not deal_options:
@@ -322,7 +377,6 @@ if len(all_leads_list) > 0:
                 c1, c2 = st.columns(2)
                 with c1:
                     st.markdown(f"### {sel_deal['name']}")
-                    # Grote prijs, wit (zoals in jouw laatste versie), geen label
                     st.markdown(f"<h1 style='color: #fff; font-size: 2.5rem; font-weight: 800; margin-top: -10px;'>{sel_deal['price']}</h1>", unsafe_allow_html=True)
                 with c2:
                     st.write(f"👤 **{sel_deal.get('contact', '-')}")
