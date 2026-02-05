@@ -37,7 +37,7 @@ st.markdown("""
     }
     /* Kaartjes */
     div[class*="stSortable"] > div > div {
-        background-color: ##3E6BFF !important;
+        background-color: #3E6BFF !important;
         color: white !important;
         border-left: 4px solid #ff4b4b !important;
         border-radius: 6px !important;
@@ -46,7 +46,7 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
     }
     div[class*="stSortable"] > div > div:hover {
-        background-color: #454752 !important;
+        background-color: #3E6BFF !important;
         transform: translateY(-2px);
     }
     </style>
