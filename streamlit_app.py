@@ -7,105 +7,95 @@ import os
 # --- 1. CONFIGURATIE ---
 st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. CSS STYLING (DE VEILIGE MANIER) ---
+# --- 2. CSS STYLING ---
 st.markdown("""
     <style>
-    /* Algemene achtergrond */
-    .stApp {
-        background-color: #1e1e1e;
-    }
-
-    /* HIER FORCEREN WE DE KOLOMMEN NAAST ELKAAR 
-       We gebruiken !important om de standaardinstellingen te overschrijven.
-    */
+    .stApp { background-color: #1e1e1e; }
+    
+    /* Layout: Kolommen naast elkaar */
     div[class*="stSortable"] {
         display: flex !important;
-        flex-direction: row !important; /* Naast elkaar */
+        flex-direction: row !important; 
         gap: 20px !important;
         overflow-x: auto !important;
         padding-bottom: 20px !important;
     }
     
-    /* Zorg dat de kolommen zelf verticaal stapelen (items onder elkaar) */
+    /* Kolommen zelf: verticaal stapelen */
     div[class*="stSortable"] > div {
         display: flex !important;
         flex-direction: column !important;
-        min-width: 250px !important; /* Minimale breedte per kolom */
-        width: 300px !important;
+        min-width: 250px !important;
+        width: 280px !important;
     }
 
-    /* Styling van de kaartjes zelf */
+    /* Kaartjes styling */
     div[class*="stSortable"] > div > div {
         background-color: #262730 !important;
         color: white !important;
         border: 1px solid #444 !important;
         border-radius: 6px !important;
         margin-bottom: 10px !important;
-        padding: 10px !important;
+        padding: 12px !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. DATABASE FUNCTIES (OPSLAAN & LADEN) ---
+# --- 3. DATABASE (OPSLAAN & LADEN) ---
 DATA_FILE = "leads_database.json"
 
 def load_data():
     if os.path.exists(DATA_FILE):
         try:
-            with open(DATA_FILE, "r") as f:
-                return json.load(f)
-        except:
-            return None
+            with open(DATA_FILE, "r") as f: return json.load(f)
+        except: return None
     return None
 
 def save_data(data):
     try:
-        with open(DATA_FILE, "w") as f:
-            json.dump(data, f)
-    except Exception as e:
-        st.error(f"Fout bij opslaan: {e}")
+        with open(DATA_FILE, "w") as f: json.dump(data, f)
+    except: pass
 
 # --- 4. DATA INITIALISATIE ---
 def create_lead(company, contact, price, notes):
     return {
         'id': str(uuid.uuid4()),
-        'name': company,
-        'contact': contact,
-        'price': price,
-        'notes': notes
+        'name': company, 'contact': contact, 'price': price, 'notes': notes
     }
 
-# Check of we data moeten laden
 if 'leads_data' not in st.session_state:
     saved_data = load_data()
-    if saved_data:
-        st.session_state['leads_data'] = saved_data
-        st.toast("📂 Data hersteld!")
-    else:
-        st.session_state['leads_data'] = {
-            'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []
-        }
+    st.session_state['leads_data'] = saved_data if saved_data else {
+        'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []
+    }
 
 if 'board_key' not in st.session_state:
     st.session_state['board_key'] = 0
 
-# --- 5. SIDEBAR ---
+# --- 5. SIDEBAR (FORMULIER & OPTIES) ---
 with st.sidebar:
+    st.title("Instellingen")
+    
+    # --- HIER IS DE MAGIE: DE SCHAKELAAR ---
+    show_details = st.toggle("🔍 Toon details op kaartjes", value=False)
+    st.divider()
+
     st.header("➕ Nieuwe Deal")
     with st.form("add_lead_form", clear_on_submit=True):
         company = st.text_input("Bedrijfsnaam")
         contact = st.text_input("Contactpersoon")
-        price = st.text_input("Waarde")
+        price = st.text_input("Waarde (bv. €500)")
         notes = st.text_area("Notities")
         submitted = st.form_submit_button("Toevoegen")
         
         if submitted:
             if not company:
-                st.error("Vul een naam in!")
+                st.error("Naam is verplicht!")
             else:
                 new_item = create_lead(company, contact, price, notes)
                 st.session_state['leads_data']['col1'].insert(0, new_item)
-                save_data(st.session_state['leads_data']) # Direct opslaan
+                save_data(st.session_state['leads_data'])
                 st.session_state['board_key'] += 1
                 st.rerun()
 
@@ -132,14 +122,20 @@ kanban_data = []
 for db_key, display_name in columns_config:
     items = []
     for lead in st.session_state['leads_data'][db_key]:
-        # Markdown tekst (Veilig, geen HTML/CSS objecten die crashen)
-        card_text = f"**{lead['name']}**\n👤 {lead['contact']} | 💰 {lead['price']}\n📝 {lead['notes']}"
+        # HIER BEPALEN WE WAT JE ZIET
+        if show_details:
+            # Uitgeklapte weergave
+            card_text = f"**{lead['name']}**\n💰 {lead['price']}\n👤 {lead['contact']}\n📝 {lead['notes']}"
+        else:
+            # Compacte weergave (Alleen naam + prijs)
+            # Als er geen prijs is, alleen de naam.
+            price_tag = f" | {lead['price']}" if lead['price'] else ""
+            card_text = f"**{lead['name']}**{price_tag}"
+            
         items.append(f"{card_text}:::{lead['id']}")
     kanban_data.append({'header': display_name, 'items': items})
 
-# HET BORD TEKENEN
-# Let op: ik heb 'custom_style' WEGGEHAALD. Dit voorkomt Error #31.
-# De styling gebeurt nu puur via de CSS bovenaan dit bestand.
+# Bord tekenen
 sorted_data = sort_items(
     kanban_data, 
     multi_containers=True, 
@@ -150,29 +146,23 @@ sorted_data = sort_items(
 if len(sorted_data) == 5:
     new_state = {}
     all_leads = {}
-    
-    # Maak lookup table
     for col in st.session_state['leads_data'].values():
-        for lead in col:
-            all_leads[lead['id']] = lead
+        for lead in col: all_leads[lead['id']] = lead
             
-    # Bouw nieuwe state
     for i, col_data in enumerate(sorted_data):
         db_key = columns_config[i][0]
         new_col_items = []
         for item_str in col_data['items']:
             parts = item_str.split(':::')
-            if len(parts) > 1:
-                item_id = parts[-1]
-                if item_id in all_leads:
-                    new_col_items.append(all_leads[item_id])
+            if len(parts) > 1 and parts[-1] in all_leads:
+                new_col_items.append(all_leads[parts[-1]])
         new_state[db_key] = new_col_items
 
-    # Check verandering
+    # Check wijzigingen
     current_ids = [[l['id'] for l in col] for col in st.session_state['leads_data'].values()]
     new_ids = [[l['id'] for l in col] for col in new_state.values()]
     
     if current_ids != new_ids:
         st.session_state['leads_data'] = new_state
-        save_data(new_state) # Opslaan na slepen
+        save_data(new_state)
         st.rerun()
