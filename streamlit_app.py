@@ -5,38 +5,17 @@ import uuid
 # --- 1. CONFIGURATIE ---
 st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. CSS LAYOUT HACKS (DIT ZORGT VOOR DE KOLOMMEN) ---
+# --- 2. CSS VOOR ACHTERGROND & BORDERS ---
+# Dit is voor de styling 'om' de app heen
 st.markdown("""
     <style>
-    /* Forceer de sortables container om horizontaal te zijn */
-    div[data-testid="stVerticalBlock"] > div > div[class*="stSortable"] {
-        display: flex !important;
-        flex-direction: row !important;
-        gap: 20px !important;
-        overflow-x: auto !important;
-    }
-    
-    /* Zorg dat de kolommen zelf verticaal stapelen */
-    div[class*="stSortable"] > div {
-        display: flex !important;
-        flex-direction: column !important;
-        min-width: 250px !important;
-        flex: 1 !important;
-    }
-
-    /* Styling van de kaartjes */
-    div[class*="stSortable"] > div > div > div {
-        background-color: #262730 !important;
-        color: #ffffff !important;
-        border: 1px solid #4a4a4a !important;
-        border-radius: 6px !important;
-        padding: 12px !important;
-        margin-bottom: 8px !important;
+    .stApp {
+        background-color: #1e1e1e;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. DATA & FUNCTIES ---
+# --- 3. DATA & LOGICA ---
 def create_lead(company, contact, price, notes):
     return {
         'id': str(uuid.uuid4()),
@@ -46,16 +25,21 @@ def create_lead(company, contact, price, notes):
         'notes': notes
     }
 
+# Start Data
 if 'leads_data' not in st.session_state:
     st.session_state['leads_data'] = {
-        'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []
+        'col1': [], 
+        'col2': [], 
+        'col3': [], 
+        'col4': [], 
+        'trash': []
     }
 
-# Forceer refresh teller
+# Refresh teller
 if 'board_key' not in st.session_state:
     st.session_state['board_key'] = 0
 
-# --- 4. SIDEBAR ---
+# --- 4. SIDEBAR (FORMULIER) ---
 with st.sidebar:
     st.header("➕ Nieuwe Deal")
     with st.form("add_lead_form", clear_on_submit=True):
@@ -84,7 +68,6 @@ with st.sidebar:
 # --- 5. HET BORD ---
 st.title("🚀 Sales Pipeline")
 
-# Kolom configuratie
 columns_config = [
     ('col1', 'Te benaderen'),
     ('col2', 'Opgevolgd'),
@@ -97,23 +80,40 @@ kanban_data = []
 for db_key, display_name in columns_config:
     items = []
     for lead in st.session_state['leads_data'][db_key]:
-        # Mooie HTML opmaak
-        card_content = f"""
-            <div style="font-weight:bold; font-size:1.1em;">{lead['name']}</div>
-            <div style="font-size:0.9em; color:#ccc;">👤 {lead['contact']}</div>
-            <div style="font-size:0.9em; color:#4CAF50;">💰 {lead['price']}</div>
-            <div style="font-size:0.8em; margin-top:5px; font-style:italic;">📝 {lead['notes']}</div>
-        """
-        # ID verstoppen
-        items.append(f"{card_content}:::{lead['id']}")
+        # GEEN HTML MEER, MAAR MARKDOWN
+        # Dit werkt gegarandeerd.
+        card_text = f"**{lead['name']}**\n👤 {lead['contact']} | 💰 {lead['price']}\n📝 {lead['notes']}"
+        items.append(f"{card_text}:::{lead['id']}")
     kanban_data.append({'header': display_name, 'items': items})
 
+# --- DE LAYOUT FIX ---
+# We gebruiken CamelCase keys (flexDirection ipv flex-direction).
+# Dit is de taal die de plugin begrijpt zonder error #31 te geven.
+custom_css = {
+    "container": {
+        "display": "flex",
+        "flexDirection": "row", 
+        "alignItems": "flex-start",
+        "justifyContent": "flex-start",
+        "gap": "20px",
+        "overflowX": "auto",
+        "width": "100%"
+    },
+    "card": {
+        "backgroundColor": "#262730",
+        "color": "white",
+        "borderRadius": "6px",
+        "padding": "10px",
+        "marginBottom": "10px",
+        "border": "1px solid #444"
+    }
+}
+
 # HET BORD TEKENEN
-# BELANGRIJK: Hier heb ik 'custom_style' WEGGEHAALD om de error te voorkomen.
-# De layout wordt nu geregeld door het CSS blok helemaal bovenaan.
 sorted_data = sort_items(
     kanban_data, 
     multi_containers=True, 
+    custom_style=custom_css, # Nu met de juiste sleutels
     key=f"board_{st.session_state['board_key']}"
 )
 
