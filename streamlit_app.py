@@ -30,7 +30,7 @@ st.markdown("""
 
     /* DE KAARTJES (DIT IS DE MAGIE) */
     div[class*="stSortable"] > div > div {
-        background-color: #262730 !important;
+        background-color: #111 !important;
         color: white !important;
         border: 1px solid #444 !important;
         border-radius: 8px !important;
