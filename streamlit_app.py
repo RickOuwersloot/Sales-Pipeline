@@ -8,7 +8,7 @@ from google.oauth2.service_account import Credentials
 # --- 1. CONFIGURATIE ---
 st.set_page_config(page_title="RO Marketing Pipeline", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. CSS STYLING ---
+# --- 2. CSS STYLING (THE BLUE FORCE FIX) ---
 st.markdown("""
     <style>
     .stApp { background-color: #1e1e1e; }
@@ -35,19 +35,25 @@ st.markdown("""
         border-radius: 10px !important;
         padding: 10px !important;
     }
-    /* Kaartjes - NU MET BLAUWE RAND */
+    
+    /* --- HIER ZIT DE FIX VOOR DE RODE KAARTJES --- */
+    /* We targeten specifiek de kaartjes binnen de sortable div */
     div[class*="stSortable"] > div > div {
-        background-color: #3b3d45 !important;
-        color: white !important;
-        /* HIER IS DE KLEUR AANGEPAST VAN ROOD NAAR BLAUW */
-        border-left: 4px solid #2196F3 !important; 
+        background-color: #2b313e !important;   /* Donkerblauw/grijs (Geen Rood meer!) */
+        color: white !important;                 /* Witte tekst */
+        border: 1px solid #2196F3 !important;    /* Blauwe rand rondom */
+        border-left: 6px solid #2196F3 !important; /* Dikke blauwe balk links */
         border-radius: 6px !important;
         padding: 12px !important;
         margin-bottom: 8px !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
+        font-weight: 500 !important;
     }
+    
+    /* Als je eroverheen muist */
     div[class*="stSortable"] > div > div:hover {
-        background-color: #454752 !important;
+        background-color: #363c4e !important;    /* Iets lichter blauw bij hover */
+        border-color: #64b5f6 !important;        /* Lichtere rand */
         transform: translateY(-2px);
     }
     </style>
@@ -67,7 +73,6 @@ def get_google_sheet():
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         client = gspread.authorize(creds)
         
-        # Zorg dat deze naam klopt!
         sheet = client.open("MijnSalesCRM").sheet1 
         return sheet
         
@@ -79,13 +84,11 @@ def load_data_from_sheet():
     try:
         sheet = get_google_sheet()
         if not sheet: return None
-        
         records = sheet.get_all_records()
         
         data_structure = {
             'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []
         }
-        
         status_map = {
             'Te benaderen': 'col1', 'Opgevolgd': 'col2',
             'Geland': 'col3', 'Geen interesse': 'col4', 'Prullenbak': 'trash'
@@ -115,7 +118,6 @@ def save_data_to_sheet(leads_data):
         if not sheet: return
 
         rows_to_write = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Notities', 'ID']]
-        
         col_map = {
             'col1': 'Te benaderen', 'col2': 'Opgevolgd',
             'col3': 'Geland', 'col4': 'Geen interesse', 'trash': 'Prullenbak'
@@ -159,7 +161,6 @@ def create_lead_obj(company, contact, email, phone, price, notes):
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
-    # --- LOGO AANGEPAST: NU KLEINER (width=150) ---
     try:
         st.image("Logo RO Marketing.png", width=150)
     except:
