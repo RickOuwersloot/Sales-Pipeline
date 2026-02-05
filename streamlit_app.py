@@ -6,7 +6,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # --- 1. CONFIGURATIE ---
-st.set_page_config(page_title="RO Marketing Pipeline", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="RO Marketing Pipeline", page_icon="Logo RO Marketing.png", layout="wide", initial_sidebar_state="expanded")
 
 # --- 2. CSS STYLING (THE BLUE FORCE FIX) ---
 st.markdown("""
