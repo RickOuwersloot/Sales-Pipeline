@@ -13,20 +13,16 @@ st.set_page_config(
     initial_sidebar_state="auto" 
 )
 
-# --- 2. CSS STYLING (DEEP BLUE FIX) ---
+# --- 2. CSS STYLING (MULTI-LAYER BLUE FIX + ICON SAVER) ---
 st.markdown("""
     <style>
     /* A. FONTS IMPORTEREN */
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
 
-    /* B. ALGEMENE STYLING & VARIABELEN OVERSCHRIJVEN */
-    /* Dit forceert de 'Theme Color' van rood naar blauw voor de hele app */
-    :root {
-        --primary-color: #2196F3 !important;
-    }
-    
+    /* B. ALGEMENE STYLING (Veilige modus) */
     .stApp { font-family: 'Montserrat', sans-serif !important; }
     p, input, textarea, .stMarkdown { font-family: 'Montserrat', sans-serif !important; }
+    /* Alleen tekst in knoppen, niet de icoontjes zelf */
     .stButton > button p { font-family: 'Montserrat', sans-serif !important; }
 
     /* C. KOPTEKSTEN */
@@ -46,7 +42,7 @@ st.markdown("""
         min-width: 400px !important;
     }
 
-    /* F. KANBAN LAYOUT */
+    /* F. KANBAN CONTAINER */
     div[class*="stSortable"] {
         display: flex !important;
         flex-direction: row !important;
@@ -57,7 +53,7 @@ st.markdown("""
         padding-bottom: 20px !important;
     }
     
-    /* G. DE KOLOMMEN (De "Banen") */
+    /* G. DE KOLOMMEN (BANEN) */
     div[class*="stSortable"] > div {
         display: flex !important;
         flex-direction: column !important;
@@ -70,24 +66,30 @@ st.markdown("""
         padding: 10px !important;
     }
     
-    /* H. DE KAARTJES (DEEP BLUE FIX) */
-    /* We gebruiken nu een spatie (descendant selector) ipv > om dieper te graven */
-    div[class*="stSortable"] div[draggable="true"], 
-    div[class*="stSortable"] > div > div {
-        background-color: #2b313e !important;   /* Donkerblauw/grijs */
+    /* H. DE KAARTJES (DE BLAUWE FIX - LEVEL 1, 2 EN 3) */
+    /* We targeten nu alles wat eruit ziet als een item, ongeacht hoe diep het zit */
+    
+    div[class*="stSortable"] > div > div,        /* Direct kind */
+    div[class*="stSortable"] > div > div > div,  /* Kind in een wrapper */
+    div[class*="stSortable"] > div > div > span  /* Tekst in een span */
+    {
+        background-color: #2b313e !important;    /* Donkerblauw/grijs */
         color: white !important;                 /* Witte tekst */
-        border: 1px solid #2196F3 !important;    /* Blauwe rand */
-        border-left: 6px solid #2196F3 !important; /* Dikke blauwe balk links */
+        border-color: #2196F3 !important;        /* Blauwe rand */
+    }
+
+    /* Specifieke styling voor het 'hoofd' blokje van het item */
+    div[class*="stSortable"] > div > div {
+        border: 1px solid #2196F3 !important;
+        border-left: 6px solid #2196F3 !important; 
         border-radius: 6px !important;
         padding: 12px !important;
         margin-bottom: 8px !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
         font-weight: 500 !important;
-        font-family: 'Montserrat', sans-serif !important;
     }
     
-    /* Als je eroverheen muist */
-    div[class*="stSortable"] div[draggable="true"]:hover,
+    /* Hover effect */
     div[class*="stSortable"] > div > div:hover {
         background-color: #363c4e !important;
         border-color: #64b5f6 !important;
@@ -118,7 +120,6 @@ def get_google_sheet():
         return None
 
 def fix_missing_ids():
-    """Checkt de sheet op lege IDs en vult ze in."""
     try:
         sheet = get_google_sheet()
         if not sheet: return
