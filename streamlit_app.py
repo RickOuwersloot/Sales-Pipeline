@@ -7,10 +7,10 @@ import os
 # --- 1. CONFIGURATIE ---
 st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. CSS STYLING (ALLEEN VOOR DE LAYOUT) ---
+# --- 2. CSS STYLING ---
 st.markdown("""
     <style>
-    .stApp { background-color: #0E1117; }
+    .stApp { background-color: #1e1e1e; }
 
     /* LAYOUT: Horizontale kolommen */
     div[class*="stSortable"] {
@@ -37,7 +37,7 @@ st.markdown("""
         border-radius: 6px !important;
         margin-bottom: 10px !important;
         padding: 15px !important;
-        font-weight: bold; /* Alleen de naam is belangrijk hier */
+        font-weight: bold;
         box-shadow: 0 2px 4px rgba(0,0,0,0.2);
     }
     </style>
@@ -59,10 +59,16 @@ def save_data(data):
     except: pass
 
 # --- 4. INITIALISATIE ---
-def create_lead(company, contact, price, notes):
+# Update: Nu met email en telefoon
+def create_lead(company, contact, email, phone, price, notes):
     return {
         'id': str(uuid.uuid4()),
-        'name': company, 'contact': contact, 'price': price, 'notes': notes
+        'name': company,
+        'contact': contact,
+        'email': email,    # Nieuw veld
+        'phone': phone,    # Nieuw veld
+        'price': price,
+        'notes': notes
     }
 
 if 'leads_data' not in st.session_state:
@@ -74,21 +80,25 @@ if 'leads_data' not in st.session_state:
 if 'board_key' not in st.session_state:
     st.session_state['board_key'] = 0
 
-# --- 5. SIDEBAR (FORMULIER) ---
+# --- 5. SIDEBAR (FORMULIER UPDATE) ---
 with st.sidebar:
     st.header("➕ Nieuwe Deal")
     with st.form("add_lead_form", clear_on_submit=True):
-        company = st.text_input("Bedrijfsnaam")
+        company = st.text_input("Bedrijfsnaam *") # * geeft aan dat het verplicht is
         contact = st.text_input("Contactpersoon")
-        price = st.text_input("Waarde")
+        email = st.text_input("Emailadres")       # Nieuw
+        phone = st.text_input("Telefoonnummer")   # Nieuw
+        price = st.text_input("Waarde (bv. €1500)")
         notes = st.text_area("Notities")
+        
         submitted = st.form_submit_button("Toevoegen")
         
         if submitted:
             if not company:
-                st.error("Naam is verplicht!")
+                st.error("Vul tenminste een bedrijfsnaam in!")
             else:
-                new_item = create_lead(company, contact, price, notes)
+                # Hier geven we de nieuwe velden mee aan de functie
+                new_item = create_lead(company, contact, email, phone, price, notes)
                 st.session_state['leads_data']['col1'].insert(0, new_item)
                 save_data(st.session_state['leads_data'])
                 st.session_state['board_key'] += 1
@@ -114,17 +124,15 @@ columns_config = [
 ]
 
 kanban_data = []
-# We maken een lijst van alle deals om straks details te kunnen tonen
 all_leads_list = []
 
 for db_key, display_name in columns_config:
     items = []
     for lead in st.session_state['leads_data'][db_key]:
-        # OP HET BORD: Alleen Naam en Prijs. Schoon en simpel.
+        # Op het bord houden we het simpel: Naam + Prijs
         price_part = f" | {lead['price']}" if lead['price'] else ""
         card_text = f"{lead['name']}{price_part}"
         
-        # We gebruiken de naam als unieke sleutel voor de plugin
         items.append(card_text)
         all_leads_list.append(lead)
         
@@ -141,7 +149,7 @@ sorted_data = sort_items(
 if len(sorted_data) == 5:
     new_state = {}
     
-    # Maak een snelle zoek-tabel op basis van de naam+prijs string
+    # Lookup tabel maken
     lead_lookup = {}
     for lead in all_leads_list:
         price_part = f" | {lead['price']}" if lead['price'] else ""
@@ -156,7 +164,7 @@ if len(sorted_data) == 5:
                 new_col_items.append(lead_lookup[item_str])
         new_state[db_key] = new_col_items
 
-    # Vergelijk op basis van ID's om zeker te zijn
+    # Check en update
     current_ids = [[l['id'] for l in col] for col in st.session_state['leads_data'].values()]
     new_ids = [[l['id'] for l in col] for col in new_state.values()]
     
@@ -165,32 +173,43 @@ if len(sorted_data) == 5:
         save_data(new_state)
         st.rerun()
 
-# --- 8. DETAIL SECTIE (HET NIEUWE GEDEELTE) ---
+# --- 8. DETAIL SECTIE (NU MET MEER INFO) ---
 st.divider()
 st.header("📋 Deal Details")
 
-# Maak een lijst van namen voor de selectbox
 if len(all_leads_list) > 0:
-    deal_options = {f"{l['name']} ({l['contact']})": l['id'] for l in all_leads_list}
+    # Maak namen voor de dropdown
+    deal_options = {f"{l['name']}": l['id'] for l in all_leads_list}
     
     selected_deal_name = st.selectbox("Kies een deal om details te bekijken:", list(deal_options.keys()))
     
-    # Zoek het bijbehorende deal-object
     selected_id = deal_options[selected_deal_name]
+    # Zoek object
     selected_deal = next((l for l in all_leads_list if l['id'] == selected_id), None)
     
     if selected_deal:
-        # Toon de details netjes in kolommen
-        col1, col2 = st.columns(2)
-        with col1:
+        # We maken nu 3 kolommen voor een mooi overzicht
+        c1, c2, c3 = st.columns(3)
+        
+        with c1:
+            st.caption("Bedrijf & Waarde")
             st.subheader(selected_deal['name'])
-            st.metric("Waarde", selected_deal['price'] if selected_deal['price'] else "—")
-        with col2:
-            st.write(f"**👤 Contactpersoon:**")
-            st.write(selected_deal['contact'])
+            st.metric("Verwachte Omzet", selected_deal['price'] if selected_deal['price'] else "—")
             
-        st.write("**📝 Notities:**")
-        st.info(selected_deal['notes'] if selected_deal['notes'] else "Geen notities.")
+        with c2:
+            st.caption("Contactgegevens")
+            # Gebruik .get() om crashes te voorkomen bij oude data zonder deze velden
+            contact = selected_deal.get('contact', '-')
+            email = selected_deal.get('email', '-')
+            phone = selected_deal.get('phone', '-')
+            
+            st.write(f"👤 **{contact}**")
+            st.write(f"📧 {email}")
+            st.write(f"☎️ {phone}")
+
+        with c3:
+            st.caption("Notities")
+            st.info(selected_deal['notes'] if selected_deal['notes'] else "Geen notities.")
         
 else:
-    st.info("Nog geen deals in de pipeline.")
+    st.info("Nog geen deals. Voeg er eentje toe in het menu links!")
