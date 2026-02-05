@@ -37,7 +37,7 @@ st.markdown("""
     }
     /* Kaartjes */
     div[class*="stSortable"] > div > div {
-        background-color: #3b3d45 !important;
+        background-color: ##3E6BFF !important;
         color: white !important;
         border-left: 4px solid #ff4b4b !important;
         border-radius: 6px !important;
