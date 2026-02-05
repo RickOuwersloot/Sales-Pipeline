@@ -7,38 +7,54 @@ import os
 # --- 1. CONFIGURATIE ---
 st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. CSS STYLING ---
+# --- 2. CSS STYLING (DE CANVA MAKE-OVER) ---
 st.markdown("""
     <style>
+    /* Algemene achtergrond */
     .stApp { background-color: #1e1e1e; }
 
-    /* LAYOUT: Horizontale kolommen */
+    /* --- LAYOUT: DE KOLOMMEN NAAST ELKAAR (CRUCIAAL) --- */
+    /* We dwingen de container om horizontaal te werken */
     div[class*="stSortable"] {
         display: flex !important;
-        flex-direction: row !important; 
-        gap: 20px !important;
-        overflow-x: auto !important;
+        flex-direction: row !important; /* Horizontaal */
+        overflow-x: auto !important;    /* Scrollen als het niet past */
+        gap: 20px !important;           /* Ruimte tussen de kolommen */
         padding-bottom: 20px !important;
+        align-items: flex-start !important; /* Starten bovenaan */
     }
     
-    /* Kolommen: Items onder elkaar */
+    /* --- STYLING VAN DE KOLOMMEN (DE "LANES") --- */
     div[class*="stSortable"] > div {
         display: flex !important;
         flex-direction: column !important;
-        min-width: 250px !important;
-        width: 280px !important;
+        min-width: 300px !important; /* Vaste breedte per kolom */
+        max-width: 300px !important;
+        background-color: #25262b !important; /* Iets lichtere achtergrond voor de baan */
+        border-radius: 12px !important; /* Mooie ronde hoeken */
+        padding: 15px !important;       /* Ruimte binnenin */
+        border: 1px solid #333 !important;
     }
 
-    /* KAARTJES: Simpel en strak */
+    /* --- STYLING VAN DE KAARTJES --- */
     div[class*="stSortable"] > div > div {
-        background-color: #262730 !important;
+        background-color: #3b3d45 !important; /* Kaartje iets lichter dan de baan */
         color: white !important;
-        border: 1px solid #444 !important;
+        border: none !important;
+        border-left: 5px solid #ff4b4b !important; /* Rood accentje */
         border-radius: 6px !important;
         margin-bottom: 10px !important;
         padding: 15px !important;
         font-weight: bold;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        cursor: grab;
+        transition: transform 0.1s;
+    }
+    
+    /* Hover effect op kaartje */
+    div[class*="stSortable"] > div > div:hover {
+        transform: scale(1.02); /* Klein plop effectje */
+        background-color: #454752 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -59,16 +75,11 @@ def save_data(data):
     except: pass
 
 # --- 4. INITIALISATIE ---
-# Update: Nu met email en telefoon
 def create_lead(company, contact, email, phone, price, notes):
     return {
         'id': str(uuid.uuid4()),
-        'name': company,
-        'contact': contact,
-        'email': email,    # Nieuw veld
-        'phone': phone,    # Nieuw veld
-        'price': price,
-        'notes': notes
+        'name': company, 'contact': contact, 'email': email, 
+        'phone': phone, 'price': price, 'notes': notes
     }
 
 if 'leads_data' not in st.session_state:
@@ -80,14 +91,14 @@ if 'leads_data' not in st.session_state:
 if 'board_key' not in st.session_state:
     st.session_state['board_key'] = 0
 
-# --- 5. SIDEBAR (FORMULIER UPDATE) ---
+# --- 5. SIDEBAR ---
 with st.sidebar:
     st.header("➕ Nieuwe Deal")
     with st.form("add_lead_form", clear_on_submit=True):
-        company = st.text_input("Bedrijfsnaam *") # * geeft aan dat het verplicht is
+        company = st.text_input("Bedrijfsnaam *")
         contact = st.text_input("Contactpersoon")
-        email = st.text_input("Emailadres")       # Nieuw
-        phone = st.text_input("Telefoonnummer")   # Nieuw
+        email = st.text_input("Emailadres")
+        phone = st.text_input("Telefoonnummer")
         price = st.text_input("Waarde (bv. €1500)")
         notes = st.text_area("Notities")
         
@@ -95,9 +106,8 @@ with st.sidebar:
         
         if submitted:
             if not company:
-                st.error("Vul tenminste een bedrijfsnaam in!")
+                st.error("Vul een naam in!")
             else:
-                # Hier geven we de nieuwe velden mee aan de functie
                 new_item = create_lead(company, contact, email, phone, price, notes)
                 st.session_state['leads_data']['col1'].insert(0, new_item)
                 save_data(st.session_state['leads_data'])
@@ -112,7 +122,7 @@ with st.sidebar:
             st.session_state['board_key'] += 1
             st.rerun()
 
-# --- 6. HET BORD (OVERZICHT) ---
+# --- 6. HET BORD (KANBAN STYLE) ---
 st.title("🚀 Sales Pipeline")
 
 columns_config = [
@@ -129,7 +139,7 @@ all_leads_list = []
 for db_key, display_name in columns_config:
     items = []
     for lead in st.session_state['leads_data'][db_key]:
-        # Op het bord houden we het simpel: Naam + Prijs
+        # Strakke weergave op het kaartje
         price_part = f" | {lead['price']}" if lead['price'] else ""
         card_text = f"{lead['name']}{price_part}"
         
@@ -148,8 +158,6 @@ sorted_data = sort_items(
 # --- 7. UPDATE LOGICA ---
 if len(sorted_data) == 5:
     new_state = {}
-    
-    # Lookup tabel maken
     lead_lookup = {}
     for lead in all_leads_list:
         price_part = f" | {lead['price']}" if lead['price'] else ""
@@ -164,7 +172,6 @@ if len(sorted_data) == 5:
                 new_col_items.append(lead_lookup[item_str])
         new_state[db_key] = new_col_items
 
-    # Check en update
     current_ids = [[l['id'] for l in col] for col in st.session_state['leads_data'].values()]
     new_ids = [[l['id'] for l in col] for col in new_state.values()]
     
@@ -173,43 +180,34 @@ if len(sorted_data) == 5:
         save_data(new_state)
         st.rerun()
 
-# --- 8. DETAIL SECTIE (NU MET MEER INFO) ---
+# --- 8. DETAILS ONDERAAN ---
 st.divider()
-st.header("📋 Deal Details")
+st.subheader("📋 Deal Details")
 
 if len(all_leads_list) > 0:
-    # Maak namen voor de dropdown
     deal_options = {f"{l['name']}": l['id'] for l in all_leads_list}
     
-    selected_deal_name = st.selectbox("Kies een deal om details te bekijken:", list(deal_options.keys()))
+    col_sel, col_info = st.columns([1, 2])
     
-    selected_id = deal_options[selected_deal_name]
-    # Zoek object
-    selected_deal = next((l for l in all_leads_list if l['id'] == selected_id), None)
+    with col_sel:
+        selected_deal_name = st.selectbox("Selecteer deal:", list(deal_options.keys()))
+        selected_id = deal_options[selected_deal_name]
+        selected_deal = next((l for l in all_leads_list if l['id'] == selected_id), None)
     
     if selected_deal:
-        # We maken nu 3 kolommen voor een mooi overzicht
-        c1, c2, c3 = st.columns(3)
-        
-        with c1:
-            st.caption("Bedrijf & Waarde")
-            st.subheader(selected_deal['name'])
-            st.metric("Verwachte Omzet", selected_deal['price'] if selected_deal['price'] else "—")
-            
-        with c2:
-            st.caption("Contactgegevens")
-            # Gebruik .get() om crashes te voorkomen bij oude data zonder deze velden
-            contact = selected_deal.get('contact', '-')
-            email = selected_deal.get('email', '-')
-            phone = selected_deal.get('phone', '-')
-            
-            st.write(f"👤 **{contact}**")
-            st.write(f"📧 {email}")
-            st.write(f"☎️ {phone}")
-
-        with c3:
-            st.caption("Notities")
-            st.info(selected_deal['notes'] if selected_deal['notes'] else "Geen notities.")
-        
+        with col_info:
+            with st.container(border=True):
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown(f"### {selected_deal['name']}")
+                    st.write(f"**Waarde:** {selected_deal['price']}")
+                with c2:
+                    st.write(f"👤 **{selected_deal.get('contact', '-')}")
+                    st.write(f"📧 {selected_deal.get('email', '-')}")
+                    st.write(f"☎️ {selected_deal.get('phone', '-')}")
+                
+                st.markdown("---")
+                st.markdown("**Notities:**")
+                st.info(selected_deal['notes'] if selected_deal['notes'] else "Geen notities.")
 else:
-    st.info("Nog geen deals. Voeg er eentje toe in het menu links!")
+    st.info("Nog geen deals in de pijplijn.")
