@@ -52,21 +52,21 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. GOOGLE SHEETS VERBINDING (DE FIX) ---
+# --- 3. GOOGLE SHEETS VERBINDING ---
 @st.cache_resource
 def get_google_sheet():
-    # HIER IS DE WIJZIGING: We lezen de string en maken er JSON van
     try:
         # We halen de "ingepakte" tekst op uit secrets
         json_text = st.secrets["service_account"]
-        # We pakken hem uit naar een echt object
-        creds_dict = json.loads(json_text)
+        
+        # FIX: strict=False zorgt dat hij niet struikelt over 'enters' in de sleutel
+        creds_dict = json.loads(json_text, strict=False)
         
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
         
-        # Open de sheet (Zorg dat de naam "MijnSalesCRM" klopt met jouw bestand!)
+        # Open de sheet (Let op de naam!)
         sheet = client.open("MijnSalesCRM").sheet1 
         return sheet
     except Exception as e:
