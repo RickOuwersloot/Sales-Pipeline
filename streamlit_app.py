@@ -7,54 +7,67 @@ import os
 # --- 1. CONFIGURATIE ---
 st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. CSS STYLING (DE CANVA MAKE-OVER) ---
+# --- 2. AGRESSIEVE CSS STYLING ---
 st.markdown("""
     <style>
-    /* Algemene achtergrond */
+    /* 1. Achtergrond */
     .stApp { background-color: #1e1e1e; }
+    
+    /* 2. Maak de app breder zodat de kolommen passen */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        padding-left: 2rem;
+        padding-right: 2rem;
+        max-width: 100% !important;
+    }
 
-    /* --- LAYOUT: DE KOLOMMEN NAAST ELKAAR (CRUCIAAL) --- */
-    /* We dwingen de container om horizontaal te werken */
+    /* 3. DE LAYOUT FIX (DIT IS DE BELANGRIJKSTE) 
+       We targeten ELKE div die lijkt op de sortable container.
+    */
     div[class*="stSortable"] {
         display: flex !important;
-        flex-direction: row !important; /* Horizontaal */
-        overflow-x: auto !important;    /* Scrollen als het niet past */
-        gap: 20px !important;           /* Ruimte tussen de kolommen */
+        flex-direction: row !important; /* Dwingt horizontaal */
+        flex-wrap: nowrap !important;   /* Verbiedt naar de volgende regel gaan */
+        overflow-x: auto !important;    /* Scrollbalk als het niet past */
+        align-items: flex-start !important;
+        gap: 15px !important;
         padding-bottom: 20px !important;
-        align-items: flex-start !important; /* Starten bovenaan */
+        width: 100% !important;
     }
     
-    /* --- STYLING VAN DE KOLOMMEN (DE "LANES") --- */
+    /* 4. De Kolommen (De "Banen") */
     div[class*="stSortable"] > div {
         display: flex !important;
         flex-direction: column !important;
-        min-width: 300px !important; /* Vaste breedte per kolom */
-        max-width: 300px !important;
-        background-color: #25262b !important; /* Iets lichtere achtergrond voor de baan */
-        border-radius: 12px !important; /* Mooie ronde hoeken */
-        padding: 15px !important;       /* Ruimte binnenin */
+        flex: 0 0 auto !important;      /* NIET krimpen, NIET groeien */
+        width: 300px !important;        /* HARDE BREEDTE: 300px */
+        min-width: 300px !important;
+        
+        background-color: #25262b !important;
         border: 1px solid #333 !important;
+        border-radius: 10px !important;
+        padding: 10px !important;
+        margin-right: 10px !important;
     }
 
-    /* --- STYLING VAN DE KAARTJES --- */
+    /* 5. De Kaartjes */
     div[class*="stSortable"] > div > div {
-        background-color: #3b3d45 !important; /* Kaartje iets lichter dan de baan */
+        background-color: #3b3d45 !important;
         color: white !important;
-        border: none !important;
-        border-left: 5px solid #ff4b4b !important; /* Rood accentje */
         border-radius: 6px !important;
-        margin-bottom: 10px !important;
-        padding: 15px !important;
-        font-weight: bold;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        cursor: grab;
-        transition: transform 0.1s;
+        padding: 12px !important;
+        margin-bottom: 8px !important;
+        border-left: 4px solid #ff4b4b !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
+        white-space: normal !important; /* Tekst mag wel wrappen IN het kaartje */
     }
     
-    /* Hover effect op kaartje */
+    /* Hover effect */
     div[class*="stSortable"] > div > div:hover {
-        transform: scale(1.02); /* Klein plop effectje */
         background-color: #454752 !important;
+        transform: translateY(-2px);
+        transition: all 0.2s ease;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -122,7 +135,7 @@ with st.sidebar:
             st.session_state['board_key'] += 1
             st.rerun()
 
-# --- 6. HET BORD (KANBAN STYLE) ---
+# --- 6. HET BORD ---
 st.title("🚀 Sales Pipeline")
 
 columns_config = [
@@ -139,10 +152,9 @@ all_leads_list = []
 for db_key, display_name in columns_config:
     items = []
     for lead in st.session_state['leads_data'][db_key]:
-        # Strakke weergave op het kaartje
         price_part = f" | {lead['price']}" if lead['price'] else ""
+        # We voegen wat witregels toe om het kaartje 'body' te geven
         card_text = f"{lead['name']}{price_part}"
-        
         items.append(card_text)
         all_leads_list.append(lead)
         
@@ -180,15 +192,13 @@ if len(sorted_data) == 5:
         save_data(new_state)
         st.rerun()
 
-# --- 8. DETAILS ONDERAAN ---
+# --- 8. DETAILS ---
 st.divider()
-st.subheader("📋 Deal Details")
-
 if len(all_leads_list) > 0:
+    st.subheader("📋 Deal Details")
     deal_options = {f"{l['name']}": l['id'] for l in all_leads_list}
     
     col_sel, col_info = st.columns([1, 2])
-    
     with col_sel:
         selected_deal_name = st.selectbox("Selecteer deal:", list(deal_options.keys()))
         selected_id = deal_options[selected_deal_name]
@@ -205,9 +215,5 @@ if len(all_leads_list) > 0:
                     st.write(f"👤 **{selected_deal.get('contact', '-')}")
                     st.write(f"📧 {selected_deal.get('email', '-')}")
                     st.write(f"☎️ {selected_deal.get('phone', '-')}")
-                
                 st.markdown("---")
-                st.markdown("**Notities:**")
                 st.info(selected_deal['notes'] if selected_deal['notes'] else "Geen notities.")
-else:
-    st.info("Nog geen deals in de pijplijn.")
