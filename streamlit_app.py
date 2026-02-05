@@ -2,156 +2,147 @@ import streamlit as st
 from streamlit_sortables import sort_items
 
 # --- CONFIGURATIE ---
-# We zetten de layout op wide, zodat de kolommen naast elkaar passen
-st.set_page_config(page_title="Mijn Sales CRM", layout="wide")
+st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
 
-# --- MONDAY.COM STYLING (CSS) ---
-# Dit blok tovert de standaard Streamlit look om naar een 'Monday' look
+# --- DARK MODE STYLING (CSS) ---
+# We maken de kaartjes donkergrijs met een mooie rand, passend bij de dark mode.
 st.markdown("""
     <style>
-    /* 1. Achtergrond van de hele app iets lichter grijs maken (SaaS look) */
-    .stApp {
-        background-color: #f7f9fc;
-    }
-    
-    /* 2. De Kaartjes zelf stylen */
+    /* De achtergrond van de kaartjes */
     div[class*="stSortable"] > div > div > div {
-        background-color: white !important;
-        color: #323338 !important;  /* Donkere tekst */
-        border: 1px solid #d0d4e4 !important;
+        background-color: #262730 !important; /* Donkergrijs */
+        color: #ffffff !important; /* Witte tekst */
+        border: 1px solid #4e4f57 !important;
         border-radius: 8px !important;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05) !important; /* Zachte schaduw */
         padding: 15px !important;
         margin-bottom: 10px !important;
-        border-left: 6px solid #0073ea !important; /* Monday Blauw accent aan de zijkant */
-        font-family: 'Roboto', sans-serif;
+        border-left: 5px solid #ff4b4b !important; /* Rode accentstreep (standaard Streamlit rood) */
     }
     
-    /* 3. De Header tekst boven de kolommen */
-    div[class*="stSortable"] {
-        background-color: transparent !important;
+    /* Zorg dat de header tekst boven de kolommen goed zichtbaar is */
+    .kanban-header {
+        font-size: 18px;
+        font-weight: bold;
+        color: white;
+        margin-bottom: 10px;
+        text-align: center;
     }
     </style>
 """, unsafe_allow_html=True)
 
 # --- DATA OPSLAG ---
+# We gebruiken simpele namen voor de kolommen in de database om errors te voorkomen
 if 'leads_data' not in st.session_state:
     st.session_state['leads_data'] = {
-        'Te benaderen': [
-            {'name': 'Bakkerij Jansen', 'contact': 'Peter', 'price': '€ 500', 'tag': ''},
-            {'name': 'Timmerbedrijf Hout', 'contact': 'Sanne', 'price': '€ 1.200', 'tag': ''}
-        ],
-        'Opgevolgd': [],
-        'Geland': [],
-        'Geen interesse': [],
-        'Prullenbak 🗑️': [] 
+        'col1': [{'name': 'Bakkerij Jansen', 'contact': 'Peter', 'price': '€ 500', 'notes': 'Interesse in grote glazen pui.'}],
+        'col2': [{'name': 'Timmerbedrijf Hout', 'contact': 'Sanne', 'price': '€ 1.200', 'notes': 'Wil offerte voor 3 wanden.'}],
+        'col3': [], # Geland
+        'col4': [], # Geen interesse
+        'trash': [] # Prullenbak
     }
 
-# --- SIDEBAR (INVOER) ---
+# --- HELPER: FORMATTEER DE KAARTJES ---
+def create_card_content(item):
+    # Dit bepaalt wat er OP het kaartje staat.
+    # We gebruiken Markdown voor dikgedrukte tekst.
+    # Let op: ':::' gebruiken we als scheidingsteken voor later.
+    display_text = f"**{item['name']}**\n" \
+                   f"👤 {item['contact']} | 💰 {item['price']}\n" \
+                   f"📝 {item['notes']}"
+    return display_text
+
+# --- SIDEBAR: NIEUWE DEAL ---
 with st.sidebar:
-    st.title("Nieuwe Deal")
+    st.header("➕ Nieuwe Deal")
     with st.form("add_lead_form", clear_on_submit=True):
         company = st.text_input("Bedrijfsnaam")
         contact = st.text_input("Contactpersoon")
-        price = st.text_input("Verwachte Waarde (bijv. €1000)")
-        notes = st.text_area("Notities")
-        submitted = st.form_submit_button("Maak Deal Aan")
+        price = st.text_input("Waarde (bv. €1500)")
+        notes = st.text_area("Notities (kort)")
+        submitted = st.form_submit_button("Toevoegen")
         
         if submitted and company:
-            new_lead = {'name': company, 'contact': contact, 'price': price, 'notes': notes, 'tag': ''}
-            st.session_state['leads_data']['Te benaderen'].append(new_lead)
+            new_lead = {'name': company, 'contact': contact, 'price': price, 'notes': notes}
+            st.session_state['leads_data']['col1'].append(new_lead)
             st.success("Toegevoegd!")
             st.rerun()
 
-    # Prullenbak logica
-    trash_count = len(st.session_state['leads_data']['Prullenbak 🗑️'])
-    if trash_count > 0:
+    # --- PRULLENBAK LOGICA ---
+    trash_items = st.session_state['leads_data']['trash']
+    if len(trash_items) > 0:
         st.divider()
-        st.warning(f"{trash_count} items in prullenbak")
-        if st.button("Leeg Prullenbak"):
-            st.session_state['leads_data']['Prullenbak 🗑️'] = []
+        st.error(f"🗑️ {len(trash_items)} items in prullenbak")
+        if st.button("Leeg Prullenbak Definitief"):
+            st.session_state['leads_data']['trash'] = []
             st.rerun()
 
 # --- HOOFDSCHERM ---
-st.title("💼 Mijn Sales Board")
+st.title("🚀 Sales Pipeline")
 
-# --- HELPER FUNCTIE VOOR KAARTJES ---
-def create_sortable_list(column_name):
-    items = []
-    for i, lead in enumerate(st.session_state['leads_data'][column_name]):
-        # We gebruiken HTML trucs om tekst dikgedrukt te krijgen in de kaart
-        # De `\n` zorgt voor een enter. 
-        # Monday toont vaak: Naam, daaronder details.
-        
-        # OPMERKING: Sortables ondersteunt beperkte opmaak, we doen het zo netjes mogelijk
-        name_part = lead['name']
-        details_part = f"{lead['contact']} | {lead.get('price', '-')}"
-        
-        # Het ID hackje (||) blijft nodig voor de logica
-        label = f"{name_part}\n👤 {details_part} ||{i}"
-        items.append(label)
-    return items
-
-# --- HET BORD ---
-# We definiëren de kolommen. 
-kanban_data = [
-    {'header': 'Te benaderen 🔵', 'items': create_sortable_list('Te benaderen')},
-    {'header': 'Opgevolgd 🟣', 'items': create_sortable_list('Opgevolgd')},
-    {'header': 'Geland 🟢', 'items': create_sortable_list('Geland')},
-    {'header': 'Geen interesse ⚪', 'items': create_sortable_list('Geen interesse')},
-    {'header': 'Prullenbak 🗑️', 'items': create_sortable_list('Prullenbak 🗑️')}
+# We bereiden de data voor de visualisatie voor
+# We moeten zorgen dat elk kaartje uniek is met een ID hack (||id)
+kanban_data = []
+columns_map = [
+    ('col1', 'Te benaderen'),
+    ('col2', 'Opgevolgd'),
+    ('col3', 'Geland 🎉'),
+    ('col4', 'Geen interesse'),
+    ('trash', 'Prullenbak 🗑️')
 ]
 
-# Render het bord
-sorted_data = sort_items(kanban_data, multi_containers=True, key='monday_board')
+# Bouw de lijsten voor de plugin
+for db_key, display_name in columns_map:
+    items = []
+    for i, lead in enumerate(st.session_state['leads_data'][db_key]):
+        content = create_card_content(lead)
+        # Voeg uniek ID toe zodat de app niet crasht bij dubbele namen
+        items.append(f"{content}||{i}") 
+    kanban_data.append({'header': display_name, 'items': items})
 
-# --- LOGICA (OPSLAAN VAN SLEPEN) ---
-# Dit is exact dezelfde logica als de vorige keer, om te zorgen dat de data klopt.
+# --- HET BORD TEKENEN ---
+# key='sales_board' zorgt dat hij niet in de war raakt bij verversen
+sorted_data = sort_items(kanban_data, multi_containers=True, key='sales_board')
 
-new_state = {}
-for col_data in sorted_data:
-    col_name = col_data['header']
-    new_items_in_col = []
-    for item_label in col_data['items']:
-        try:
-            original_index = int(item_label.split('||')[-1])
-            found_lead = None
-            # Zoek het originele object
-            for c_name, leads in st.session_state['leads_data'].items():
-                if original_index < len(leads):
-                    check_lead = leads[original_index]
-                    # Check of de naam overeenkomt (veiligheid)
-                    if check_lead['name'] in item_label:
-                        found_lead = check_lead
-                        break
-            if found_lead:
-                new_items_in_col.append(found_lead)
-            else:
-                # Fallback
-                new_items_in_col.append({'name': item_label.split('\n')[0], 'contact': '?', 'price': ''})
-        except:
-            continue
-    new_state[col_name] = new_items_in_col
+# --- DATA SYNCHRONISATIE (CRUCIAAL) ---
+# Als je sleept, updaten we hier de database op de achtergrond.
 
-# Update alleen als er echt geschoven is (lengte check is simpele trigger)
-if len(sorted_data) == 5:
-    # Rebuild state
-    temp_state = {k: [] for k in st.session_state['leads_data'].keys()}
-    all_leads_flat = []
-    for col in st.session_state['leads_data'].values():
-        all_leads_flat.extend(col)
-        
-    for col_data in sorted_data:
-        c_name = col_data['header']
-        for item_label in col_data['items']:
-             text_part = item_label.split(' ||')[0] # Let op de spatie voor ||
-             # We zoeken op de naam (eerste deel voor de \n)
-             name_to_find = text_part.split('\n')[0]
-             
-             for lead in all_leads_flat:
-                 if lead['name'] == name_to_find:
-                     temp_state[c_name].append(lead)
-                     all_leads_flat.remove(lead)
-                     break
+if len(sorted_data) == 5: # Check of de structuur klopt
+    new_state = {}
     
-    st.session_state['leads_data'] = temp_state
+    # Haal alle leads op in een platte lijst om ze terug te vinden
+    all_current_leads = []
+    for col in st.session_state['leads_data'].values():
+        all_current_leads.extend(col)
+
+    # Loop door de NIEUWE volgorde van het bord
+    for idx, col_data in enumerate(sorted_data):
+        # We moeten weten bij welke database-key deze kolom hoort (col1, col2, etc)
+        db_key = columns_map[idx][0] 
+        new_items_in_this_col = []
+        
+        for item_label in col_data['items']:
+            # Haal de tekst los van het unieke ID (voor de ||)
+            clean_text = item_label.split('||')[0]
+            
+            # Zoek de originele data erbij
+            # (We vergelijken de geformatteerde tekst)
+            found = False
+            for lead in all_current_leads:
+                if create_card_content(lead) == clean_text:
+                    new_items_in_this_col.append(lead)
+                    # Verwijder uit de zoeklijst om dubbelen te voorkomen
+                    all_current_leads.remove(lead)
+                    found = True
+                    break
+            
+            if not found:
+                # Fallback: als er iets heel geks gebeurt, maak een nieuw item
+                # Dit voorkomt de KeyError die je eerder zag
+                lines = clean_text.replace('**', '').split('\n')
+                name = lines[0] if len(lines) > 0 else "Onbekend"
+                new_items_in_this_col.append({'name': name, 'contact': '?', 'price': '?', 'notes': ''})
+
+        new_state[db_key] = new_items_in_this_col
+
+    # Update de database
+    st.session_state['leads_data'] = new_state
