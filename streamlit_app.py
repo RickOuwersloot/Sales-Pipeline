@@ -4,124 +4,170 @@ from streamlit_sortables import sort_items
 # --- CONFIGURATIE ---
 st.set_page_config(page_title="Mijn CRM", layout="wide")
 
-# --- DATA OPSLAG (TIJDELIJK IN GEHEUGEN) ---
-# Let op: Bij Streamlit Cloud ben je je data kwijt als je de pagina ververst
-# tenzij we later een database koppelen. Dit is voor nu even de sessie-opslag.
+# --- CSS STYLING (OM HET BLAUW TE MAKEN) ---
+st.markdown("""
+    <style>
+    /* Pas de achtergrondkleur van de kaartjes aan */
+    div[class*="stSortable"] > div > div > div {
+        background-color: #e3f2fd !important; /* Lichtblauw */
+        border: 1px solid #90caf9 !important; /* Blauwe rand */
+        color: #0d47a1 !important; /* Donkerblauwe tekst */
+        border-radius: 8px !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- DATA OPSLAG ---
 if 'leads_data' not in st.session_state:
     st.session_state['leads_data'] = {
         'Te benaderen': [
-            {'name': 'Bedrijf A', 'contact': 'Jan', 'phone': '0612345678', 'tag': ''},
-            {'name': 'Bedrijf B', 'contact': 'Els', 'phone': '0687654321', 'tag': ''}
+            {'name': 'Bedrijf A', 'contact': 'Jan', 'tag': ''},
+            {'name': 'Bedrijf B', 'contact': 'Els', 'tag': ''}
         ],
         'Opgevolgd': [],
         'Geland': [],
-        'Geen interesse': []
+        'Geen interesse': [],
+        'Prullenbak 🗑️': []  # Nieuwe kolom voor verwijderen
     }
 
-# --- TITEL ---
-st.title("🚀 Mijn Sales Pipeline")
-st.markdown("Sleep de kaarten naar de juiste kolom.")
-
-# --- NIEUWE LEAD TOEVOEGEN (SIDEBAR) ---
+# --- SIDEBAR (INVOER & ACTIES) ---
 with st.sidebar:
-    st.header("Nieuwe Lead Toevoegen")
+    st.header("Nieuwe Lead")
     with st.form("add_lead_form", clear_on_submit=True):
         company = st.text_input("Bedrijfsnaam")
         contact = st.text_input("Contactpersoon")
-        email = st.text_input("E-mailadres")
-        phone = st.text_input("Telefoonnummer")
-        notes = st.text_area("Opmerkingen")
-        
+        notes = st.text_area("Notities")
         submitted = st.form_submit_button("Toevoegen")
         
         if submitted and company:
-            new_lead = {
-                'name': company, 
-                'contact': contact, 
-                'phone': phone, 
-                'email': email,
-                'notes': notes,
-                'tag': ''
-            }
+            # We voegen hem toe aan de sessie met een tijdelijk ID
+            new_lead = {'name': company, 'contact': contact, 'notes': notes, 'tag': ''}
             st.session_state['leads_data']['Te benaderen'].append(new_lead)
             st.success(f"{company} toegevoegd!")
+            st.rerun()
 
-# --- FUNCTIE OM DATA TE FORMATTEREN VOOR HET BORD ---
-# De sleep-tool werkt het beste met simpele tekst. 
-# We maken hier "kaartjes" van de data.
-def get_card_labels(column_name):
-    cards = []
-    # We gebruiken 'enumerate' om elk kaartje een uniek nummer (i) te geven
-    for i, item in enumerate(st.session_state['leads_data'][column_name]):
-        label = f"{item['name']} ({item['contact']}) #{i+1}"
-        if column_name == 'Opgevolgd' and item.get('tag'):
-             label += f" - [{item['tag']}]"
-        cards.append(label)
-    return cards
+    st.divider()
+    
+    # Knop om prullenbak te legen
+    trash_count = len(st.session_state['leads_data']['Prullenbak 🗑️'])
+    if trash_count > 0:
+        st.warning(f"Er zitten {trash_count} items in de prullenbak.")
+        if st.button("🗑️ Leeg Prullenbak definitief"):
+            st.session_state['leads_data']['Prullenbak 🗑️'] = []
+            st.rerun()
+
+# --- TITEL ---
+st.title("🚀 Sales Pipeline")
+
+# --- HELPER FUNCTIE ---
+# Omdat sortables alleen met tekst werkt, maken we tekst-labels
+def create_sortable_list(column_name):
+    items = []
+    for i, lead in enumerate(st.session_state['leads_data'][column_name]):
+        # We maken een label: "Bedrijfsnaam (Contact) #ID"
+        # De #ID is nodig zodat Streamlit niet crasht bij dubbele namen
+        label = f"{lead['name']} ({lead['contact']}) ||{i}"
+        items.append(label)
+    return items
 
 # --- HET KANBAN BORD (SLEPEN) ---
-# We halen de huidige status op
-# --- HET KANBAN BORD (SLEPEN) ---
-# We maken een lijst van kolommen (headers) en items
+# Dit is de enige visualisatie die je nu ziet
 kanban_data = [
-    {'header': 'Te benaderen', 'items': get_card_labels('Te benaderen')},
-    {'header': 'Opgevolgd', 'items': get_card_labels('Opgevolgd')},
-    {'header': 'Geland', 'items': get_card_labels('Geland')},
-    {'header': 'Geen interesse', 'items': get_card_labels('Geen interesse')}
+    {'header': 'Te benaderen', 'items': create_sortable_list('Te benaderen')},
+    {'header': 'Opgevolgd', 'items': create_sortable_list('Opgevolgd')},
+    {'header': 'Geland 🎉', 'items': create_sortable_list('Geland')},
+    {'header': 'Geen interesse', 'items': create_sortable_list('Geen interesse')},
+    {'header': 'Prullenbak 🗑️', 'items': create_sortable_list('Prullenbak 🗑️')}
 ]
 
-# Dit toont het bord en laat je slepen
-sorted_data = sort_items(kanban_data, multi_containers=True)
-
-# Dit toont het bord en laat je slepen
+# Hier wordt het bord getekend en de nieuwe volgorde opgevangen
 sorted_data = sort_items(kanban_data, multi_containers=True, key='mijn_bord')
 
-# --- LOGICA: TAGS TOEVOEGEN BIJ VERPLAATSING ---
-# Hier kijken we of er iets veranderd is door het slepen
-# Dit is een simpele weergave. Voor volledige data-integriteit bij slepen
-# is meer complexe code nodig, maar dit werkt visueel voor je MVP.
+# --- LOGICA: DATA BIJWERKEN NA SLEPEN ---
+# Dit stukje code zorgt dat als jij sleept, de database op de achtergrond ook echt verandert.
+# We moeten de labels (Tekst) terugvertalen naar de data (Objecten).
 
-st.write("---")
-st.caption("Details van je leads:")
+# Check of er gesleept is (is de data veranderd?)
+needs_update = False
+new_state = {}
 
-# Laat de ruwe data zien (zodat je telefoonnummers etc kunt lezen)
-col1, col2, col3, col4 = st.columns(4)
+for col_data in sorted_data:
+    col_name = col_data['header']
+    new_items_in_col = []
+    
+    for item_label in col_data['items']:
+        # We halen de "oude" kolom en index uit het label hackje "||{index}"
+        # Dit is een trucje om de originele data terug te vinden
+        try:
+            original_index = int(item_label.split('||')[-1])
+            # We moeten zoeken waar dit item vandaan kwam. 
+            # Omdat dit complex is in sortables, doen we een simpele lookup:
+            # We zoeken in ALLE huidige kolommen naar dit specifieke item.
+            found_lead = None
+            for c_name, leads in st.session_state['leads_data'].items():
+                if original_index < len(leads):
+                    # Check of de naam matcht (voor de zekerheid)
+                    check_lead = leads[original_index]
+                    if f"{check_lead['name']} ({check_lead['contact']})" in item_label:
+                        found_lead = check_lead
+                        break
+            
+            if found_lead:
+                new_items_in_col.append(found_lead)
+            else:
+                # Fallback voor als er iets geks gebeurt, maak nieuw object
+                clean_name = item_label.split('||')[0]
+                new_items_in_col.append({'name': clean_name, 'contact': '?', 'tag': ''})
+                
+        except:
+            continue
 
-with col1:
-    st.subheader("Te benaderen")
-    for lead in st.session_state['leads_data']['Te benaderen']:
-        with st.expander(lead['name']):
-            st.write(f"👤 {lead['contact']}")
-            st.write(f"📞 {lead['phone']}")
-            st.write(f"📧 {lead.get('email', '-')}")
-            st.write(f"📝 {lead.get('notes', '-')}")
+    new_state[col_name] = new_items_in_col
 
-with col2:
-    st.subheader("Opgevolgd")
-    # Hier kun je eventueel knoppen maken om de status (Mail/Bel) aan te passen
-    for i, lead in enumerate(st.session_state['leads_data']['Opgevolgd']):
-        with st.expander(f"{lead['name']}"):
-            st.write(f"Huidige tag: {lead.get('tag', 'Geen')}")
-            if st.button("Markeer als GEBELD", key=f"bel_{i}"):
-                lead['tag'] = "BEL"
-                st.rerun()
-            if st.button("Markeer als MAIL", key=f"mail_{i}"):
-                lead['tag'] = "MAIL"
-                st.rerun()
+# Vergelijk lengtes om te zien of we moeten updaten (simpele check)
+# In een echte productie-app zou je dit robuuster doen, maar voor nu werkt dit.
+current_total = sum(len(v) for v in st.session_state['leads_data'].values())
+new_total = sum(len(v) for v in new_state.values())
 
-with col3: 
-    st.subheader("Geland 🎉")
-    for lead in st.session_state['leads_data']['Geland']:
-        st.write(f"✅ {lead['name']}")
-
-with col4:
-    st.subheader("Geen interesse")
-    for lead in st.session_state['leads_data']['Geen interesse']:
-        st.write(f"❌ {lead['name']}")
-
-# --- UPDATE LOGICA (Synchronisatie) ---
-# Dit stukje code zorgt dat als je sleept, de visualisatie klopt.
-# Let op: Omdat 'slepen' in Streamlit lastig te koppelen is aan de volledige database
-# objecten, is dit script vooral visueel.
-# Voor de échte werking moeten we de 'sorted_data' (de nieuwe volgorde)
-# terugvertalen naar je database objecten. Dat is stap 2.
+# Als de gebruiker sleept, update sortables de visuals direct. 
+# Wij updaten de sessie state pas bij de volgende actie of rerun, 
+# maar om dataverlies te voorkomen schrijven we de nieuwe sortering terug als de formaten kloppen.
+if len(sorted_data) == 5: # We hebben 5 kolommen
+    # Update de sessie state met de nieuwe volgorde
+    # Let op: Dit is een "gevaarlijke" operatie bij sortables.
+    # We vertrouwen erop dat de visual matcht met de logica.
+    
+    # Om te voorkomen dat items 'verdwijnen' bij een refresh, updaten we de state alleen
+    # als we zeker weten dat de structuur klopt. 
+    # Voor nu (MVP): We updaten de state op basis van wat sortables teruggeeft.
+    
+    # We bouwen de state opnieuw op basis van de labels die sortables teruggeeft.
+    # Dit is de enige manier om "verplaatsing" permanent te maken.
+    
+    # Reset de state containers
+    temp_state = {k: [] for k in st.session_state['leads_data'].keys()}
+    
+    all_leads_flat = []
+    for col in st.session_state['leads_data'].values():
+        all_leads_flat.extend(col)
+        
+    # Nu gaan we puzzelen: Welk item hoort bij welk label?
+    # Dit is nodig omdat sortables alleen tekst verplaatst, geen objecten.
+    for col_data in sorted_data:
+        c_name = col_data['header']
+        for item_label in col_data['items']:
+             # Haal de tekst voor de '||' op
+             text_part = item_label.split('||')[0]
+             
+             # Zoek de data erbij in onze oude lijst
+             # (Dit pakt de eerste match, dus bij 2 exact dezelfde bedrijven pakt hij de eerste)
+             for lead in all_leads_flat:
+                 lead_str = f"{lead['name']} ({lead['contact']})"
+                 if lead_str == text_part:
+                     temp_state[c_name].append(lead)
+                     # Verwijder uit flat list zodat we bij dubbele namen de volgende pakken
+                     all_leads_flat.remove(lead)
+                     break
+    
+    # Overschrijf de sessie
+    st.session_state['leads_data'] = temp_state
