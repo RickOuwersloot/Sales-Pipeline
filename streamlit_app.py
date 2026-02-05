@@ -13,51 +13,50 @@ st.set_page_config(
     initial_sidebar_state="auto" 
 )
 
-# --- 2. CSS STYLING (MET DE ICON FIX 🛠️) ---
+# --- 2. CSS STYLING (MET DE PIJLTJES FIX 🏹) ---
 st.markdown("""
     <style>
     /* A. FONTS IMPORTEREN */
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
 
     /* B. ALGEMENE STYLING */
-    /* We zetten de basis op Montserrat */
+    /* Basis tekst is Montserrat */
     .stApp { font-family: 'Montserrat', sans-serif !important; }
     
-    /* Specifieke elementen */
-    p, input, textarea, .stMarkdown, h1, h2, h3, h4, h5, h6 { 
+    /* We forceren tekst elementen naar Montserrat */
+    p, input, textarea, .stMarkdown, h1, h2, h3, h4, h5, h6, .stSelectbox, .stTextInput { 
         font-family: 'Montserrat', sans-serif !important; 
     }
     
-    /* --- DE "ICON SAVER" FIX --- */
-    /* Dit zorgt ervoor dat knoppen en icoontjes hun eigen plaatjes mogen houden */
-    button, i, span[class^="material-symbols"] {
-        font-family: inherit !important;
+    /* C. CRUCIALE FIX VOOR DE PIJLTJES / ICONEN */
+    /* We resetten de knoppen in de header en sidebar control terug naar standaard */
+    /* Hierdoor kunnen de icoontjes weer geladen worden */
+    button[kind="header"], 
+    [data-testid="stSidebarCollapsedControl"] button,
+    [data-testid="stSidebarExpandedControl"] button,
+    [data-testid="stSidebarCollapsedControl"] span,
+    [data-testid="stSidebarExpandedControl"] span {
+        font-family: "Source Sans Pro", sans-serif !important;
     }
     
-    /* Specifiek voor de sidebar toggle knop (die met de dubbele pijltjes) */
-    [data-testid="stSidebarCollapsedControl"] button,
-    [data-testid="stSidebarCollapsedControl"] span {
-        font-family: sans-serif !important; /* Terug naar standaard voor icoontjes */
-    }
-
-    /* C. KOPTEKSTEN (Dela Gothic One) */
+    /* D. KOPTEKSTEN */
     h1, h2, h3, .stHeading, .st-emotion-cache-10trblm {
         font-family: 'Dela Gothic One', cursive !important;
         letter-spacing: 1px;
         font-weight: 400 !important;
     }
 
-    /* D. LAYOUT & KLEUREN */
+    /* E. LAYOUT & KLEUREN */
     .stApp { background-color: #0E1117; }
     .block-container { max_width: 100% !important; padding: 2rem; }
     
-    /* E. SIDEBAR BREEDTE */
+    /* F. SIDEBAR BREEDTE */
     section[data-testid="stSidebar"] {
         width: 400px !important;
         min-width: 400px !important;
     }
 
-    /* F. KANBAN LAYOUT */
+    /* G. KANBAN LAYOUT */
     div[class*="stSortable"] {
         display: flex !important;
         flex-direction: row !important;
@@ -68,7 +67,6 @@ st.markdown("""
         padding-bottom: 20px !important;
     }
     
-    /* G. DE KOLOMMEN */
     div[class*="stSortable"] > div {
         display: flex !important;
         flex-direction: column !important;
@@ -81,14 +79,13 @@ st.markdown("""
         padding: 10px !important;
     }
     
-    /* H. DE KAARTJES (DE HARDE BLAUWE FIX) */
+    /* H. DE KAARTJES (HARDE BLAUWE FIX) */
     div[class*="stSortable"] div {
-        background-color: #2b313e !important;   /* Forceer Donkerblauw overal */
-        color: white !important;                 /* Forceer Witte tekst overal */
+        background-color: #2b313e !important;   
+        color: white !important;                 
         border-radius: 6px !important;
     }
 
-    /* Specifiek de randjes en schaduw voor de items */
     div[class*="stSortable"] > div > div {
         border: 1px solid #2196F3 !important;
         border-left: 6px solid #2196F3 !important; 
@@ -97,7 +94,6 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
     }
     
-    /* Hover effect */
     div[class*="stSortable"] > div > div:hover {
         background-color: #363c4e !important;
         border-color: #64b5f6 !important;
