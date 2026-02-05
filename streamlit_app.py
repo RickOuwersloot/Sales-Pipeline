@@ -271,17 +271,38 @@ if len(sorted_data) == 5:
         save_data_to_sheet(new_state)
         st.rerun()
 
-# --- 8. DETAILS ---
+# --- 8. DETAILS (MET NIEUW FILTER!) ---
 st.divider()
 if len(all_leads_list) > 0:
     st.subheader("📋 Deal Details")
-    deal_options = {f"{l['name']}": l['id'] for l in all_leads_list}
     
     c_sel, c_inf = st.columns([1, 2])
+    
     with c_sel:
-        sel_name = st.selectbox("Selecteer:", list(deal_options.keys()))
-        sel_id = deal_options[sel_name]
-        sel_deal = next((l for l in all_leads_list if l['id'] == sel_id), None)
+        # --- NIEUW: Filter Dropdown ---
+        filter_options = ["Alles tonen"] + [name for _, name in columns_config]
+        selected_filter = st.selectbox("🔍 Filter op fase:", filter_options)
+        
+        # Filter de lijst op basis van keuze
+        filtered_leads = []
+        if selected_filter == "Alles tonen":
+            filtered_leads = all_leads_list
+        else:
+            # Zoek de juiste kolom code bij de naam
+            target_col_key = next((k for k, n in columns_config if n == selected_filter), None)
+            if target_col_key:
+                filtered_leads = st.session_state['leads_data'][target_col_key]
+
+        # Maak de opties voor de deal-selectie op basis van het filter
+        deal_options = {f"{l['name']}": l['id'] for l in filtered_leads}
+        
+        if not deal_options:
+            st.info("Geen deals gevonden in deze fase.")
+            sel_deal = None
+        else:
+            sel_name = st.selectbox("Selecteer deal:", list(deal_options.keys()))
+            sel_id = deal_options[sel_name]
+            sel_deal = next((l for l in all_leads_list if l['id'] == sel_id), None)
     
     if sel_deal:
         with c_inf:
@@ -289,7 +310,7 @@ if len(all_leads_list) > 0:
                 c1, c2 = st.columns(2)
                 with c1:
                     st.markdown(f"### {sel_deal['name']}")
-                    # HIER IS HET AANGEPAST: Grote prijs, groen, geen label
+                    # Grote prijs, wit (zoals in jouw laatste versie), geen label
                     st.markdown(f"<h1 style='color: #fff; font-size: 2.5rem; font-weight: 800; margin-top: -10px;'>{sel_deal['price']}</h1>", unsafe_allow_html=True)
                 with c2:
                     st.write(f"👤 **{sel_deal.get('contact', '-')}")
