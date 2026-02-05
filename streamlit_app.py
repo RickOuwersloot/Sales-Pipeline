@@ -13,16 +13,16 @@ st.set_page_config(
     initial_sidebar_state="auto" 
 )
 
-# --- 2. CSS STYLING (MULTI-LAYER BLUE FIX + ICON SAVER) ---
+# --- 2. CSS STYLING (DE VERFROLLER FIX 🖌️) ---
 st.markdown("""
     <style>
     /* A. FONTS IMPORTEREN */
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
 
-    /* B. ALGEMENE STYLING (Veilige modus) */
+    /* B. ALGEMENE STYLING */
     .stApp { font-family: 'Montserrat', sans-serif !important; }
     p, input, textarea, .stMarkdown { font-family: 'Montserrat', sans-serif !important; }
-    /* Alleen tekst in knoppen, niet de icoontjes zelf */
+    /* Alleen tekst in knoppen, niet de icoontjes */
     .stButton > button p { font-family: 'Montserrat', sans-serif !important; }
 
     /* C. KOPTEKSTEN */
@@ -42,7 +42,7 @@ st.markdown("""
         min-width: 400px !important;
     }
 
-    /* F. KANBAN CONTAINER */
+    /* F. KANBAN LAYOUT */
     div[class*="stSortable"] {
         display: flex !important;
         flex-direction: row !important;
@@ -53,7 +53,7 @@ st.markdown("""
         padding-bottom: 20px !important;
     }
     
-    /* G. DE KOLOMMEN (BANEN) */
+    /* G. DE KOLOMMEN */
     div[class*="stSortable"] > div {
         display: flex !important;
         flex-direction: column !important;
@@ -66,27 +66,23 @@ st.markdown("""
         padding: 10px !important;
     }
     
-    /* H. DE KAARTJES (DE BLAUWE FIX - LEVEL 1, 2 EN 3) */
-    /* We targeten nu alles wat eruit ziet als een item, ongeacht hoe diep het zit */
+    /* H. DE KAARTJES (DE HARDE FIX) */
+    /* We gebruiken nu een spatie in plaats van >. 
+       Dit betekent: "Pak ELK divje dat ergens binnen de sortable lijst zit". */
     
-    div[class*="stSortable"] > div > div,        /* Direct kind */
-    div[class*="stSortable"] > div > div > div,  /* Kind in een wrapper */
-    div[class*="stSortable"] > div > div > span  /* Tekst in een span */
-    {
-        background-color: #2b313e !important;    /* Donkerblauw/grijs */
-        color: white !important;                 /* Witte tekst */
-        border-color: #2196F3 !important;        /* Blauwe rand */
+    div[class*="stSortable"] div {
+        background-color: #2b313e !important;   /* Forceer Donkerblauw overal */
+        color: white !important;                 /* Forceer Witte tekst overal */
+        border-radius: 6px !important;
     }
 
-    /* Specifieke styling voor het 'hoofd' blokje van het item */
+    /* Specifiek de randjes en schaduw voor de items */
     div[class*="stSortable"] > div > div {
         border: 1px solid #2196F3 !important;
         border-left: 6px solid #2196F3 !important; 
-        border-radius: 6px !important;
-        padding: 12px !important;
         margin-bottom: 8px !important;
+        padding: 12px !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
-        font-weight: 500 !important;
     }
     
     /* Hover effect */
