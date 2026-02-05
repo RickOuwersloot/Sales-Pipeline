@@ -13,13 +13,18 @@ st.set_page_config(
     initial_sidebar_state="auto" 
 )
 
-# --- 2. CSS STYLING ---
+# --- 2. CSS STYLING (DEEP BLUE FIX) ---
 st.markdown("""
     <style>
     /* A. FONTS IMPORTEREN */
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
 
-    /* B. ALGEMENE STYLING (Veilige modus voor icoontjes) */
+    /* B. ALGEMENE STYLING & VARIABELEN OVERSCHRIJVEN */
+    /* Dit forceert de 'Theme Color' van rood naar blauw voor de hele app */
+    :root {
+        --primary-color: #2196F3 !important;
+    }
+    
     .stApp { font-family: 'Montserrat', sans-serif !important; }
     p, input, textarea, .stMarkdown { font-family: 'Montserrat', sans-serif !important; }
     .stButton > button p { font-family: 'Montserrat', sans-serif !important; }
@@ -35,9 +40,9 @@ st.markdown("""
     .stApp { background-color: #0E1117; }
     .block-container { max_width: 100% !important; padding: 2rem; }
     
-    /* E. SIDEBAR BREEDTE (HIER PAS JE HEM AAN!) */
+    /* E. SIDEBAR BREEDTE */
     section[data-testid="stSidebar"] {
-        width: 400px !important; /* Pas dit getal aan (bv. 350px, 450px) */
+        width: 400px !important;
         min-width: 400px !important;
     }
 
@@ -51,6 +56,8 @@ st.markdown("""
         gap: 15px !important;
         padding-bottom: 20px !important;
     }
+    
+    /* G. DE KOLOMMEN (De "Banen") */
     div[class*="stSortable"] > div {
         display: flex !important;
         flex-direction: column !important;
@@ -63,19 +70,24 @@ st.markdown("""
         padding: 10px !important;
     }
     
-    /* G. KAARTJES STYLING */
+    /* H. DE KAARTJES (DEEP BLUE FIX) */
+    /* We gebruiken nu een spatie (descendant selector) ipv > om dieper te graven */
+    div[class*="stSortable"] div[draggable="true"], 
     div[class*="stSortable"] > div > div {
-        background-color: #2b313e !important;
-        color: white !important;
-        border: 1px solid #2196F3 !important;
-        border-left: 6px solid #2196F3 !important; 
+        background-color: #2b313e !important;   /* Donkerblauw/grijs */
+        color: white !important;                 /* Witte tekst */
+        border: 1px solid #2196F3 !important;    /* Blauwe rand */
+        border-left: 6px solid #2196F3 !important; /* Dikke blauwe balk links */
         border-radius: 6px !important;
         padding: 12px !important;
         margin-bottom: 8px !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
         font-weight: 500 !important;
+        font-family: 'Montserrat', sans-serif !important;
     }
     
+    /* Als je eroverheen muist */
+    div[class*="stSortable"] div[draggable="true"]:hover,
     div[class*="stSortable"] > div > div:hover {
         background-color: #363c4e !important;
         border-color: #64b5f6 !important;
