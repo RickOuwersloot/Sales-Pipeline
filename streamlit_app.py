@@ -290,7 +290,7 @@ if len(all_leads_list) > 0:
                 with c1:
                     st.markdown(f"### {sel_deal['name']}")
                     # HIER IS HET AANGEPAST: Grote prijs, groen, geen label
-                    st.markdown(f"<h1 style='color: #fff; font-size: 2.5rem; font-weight: 600; margin-top: -10px;'>{sel_deal['price']}</h1>", unsafe_allow_html=True)
+                    st.markdown(f"<h1 style='color: #fff; font-size: 2.5rem; font-weight: 800; margin-top: -10px;'>{sel_deal['price']}</h1>", unsafe_allow_html=True)
                 with c2:
                     st.write(f"👤 **{sel_deal.get('contact', '-')}")
                     st.write(f"📧 {sel_deal.get('email', '-')}")
