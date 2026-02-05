@@ -26,6 +26,12 @@ st.markdown("""
         font-weight: 400 !important;
     }
 
+    h1, h2, h3, .st.subheader{
+     font-family: 'Dela Gothic One', cursive !important;
+        letter-spacing: 1px;
+        font-weight: 400 !important;
+    }
+
     /* D. LAYOUT & KLEUREN */
     .stApp { background-color: #0E1117; }
     .block-container { max_width: 100% !important; padding: 2rem; }
