@@ -5,7 +5,7 @@ import json
 import gspread
 from google.oauth2.service_account import Credentials
 
-# --- 1. CONFIGURATIE (AANGEPAST: sidebar_state="auto" stopt het verspringen) ---
+# --- 1. CONFIGURATIE ---
 st.set_page_config(
     page_title="RO Marketing Pipeline", 
     page_icon="Logo RO Marketing.png", 
@@ -13,18 +13,29 @@ st.set_page_config(
     initial_sidebar_state="auto" 
 )
 
-# --- 2. CSS STYLING (THE BLUE FORCE FIX + FONTS) ---
+# --- 2. CSS STYLING (THE ICON SAVER FIX) ---
 st.markdown("""
     <style>
     /* A. FONTS IMPORTEREN */
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
 
-    /* B. ALGEMENE STYLING */
-    html, body, [class*="css"], .stApp, div, p, span, input, textarea, button, .stMarkdown {
+    /* B. ALGEMENE STYLING (Veilige modus) */
+    /* We zetten het font op de hele app, maar forceren het niet op icoontjes (span/i) */
+    .stApp {
+        font-family: 'Montserrat', sans-serif !important;
+    }
+    
+    /* Specifiek tekst elementen die wel Montserrat moeten zijn */
+    p, input, textarea, .stMarkdown {
+        font-family: 'Montserrat', sans-serif !important;
+    }
+    
+    /* Knoppen tekst (maar niet de icoontjes erin) */
+    .stButton > button p {
         font-family: 'Montserrat', sans-serif !important;
     }
 
-    /* C. KOPTEKSTEN */
+    /* C. KOPTEKSTEN (Dela Gothic One) */
     h1, h2, h3, .stHeading, .st-emotion-cache-10trblm {
         font-family: 'Dela Gothic One', cursive !important;
         letter-spacing: 1px;
@@ -100,7 +111,6 @@ def get_google_sheet():
         st.error(f"Fout bij verbinden met Google: {e}")
         return None
 
-# --- CRUCIAAL: DEZE FUNCTIE MOET BLIJVEN VOOR JE NIEUWE LEADS! ---
 def fix_missing_ids():
     """Checkt de sheet op lege IDs en vult ze in."""
     try:
@@ -108,7 +118,6 @@ def fix_missing_ids():
         if not sheet: return
         
         records = sheet.get_all_records()
-        # Headers opnieuw definiëren voor de zekerheid
         updated_rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Notities', 'ID']]
         
         existing_ids = set()
@@ -117,7 +126,6 @@ def fix_missing_ids():
         for row in records:
             current_id = str(row.get('ID', '')).strip()
             
-            # Als ID leeg is OF al bestaat -> Nieuwe maken
             if not current_id or current_id in existing_ids:
                 new_id = str(uuid.uuid4())
                 row['ID'] = new_id
@@ -127,7 +135,6 @@ def fix_missing_ids():
                 
             existing_ids.add(new_id)
             
-            # Rij toevoegen aan update lijst
             updated_rows.append([
                 row.get('Status', 'Te benaderen'),
                 row.get('Bedrijf', ''),
@@ -168,7 +175,6 @@ def load_data_from_sheet():
         
         for row in records:
             if row.get('Bedrijf'):
-                # Veiligheidscheck tijdens laden
                 raw_id = str(row.get('ID', '')).strip()
                 safe_id = raw_id if raw_id else str(uuid.uuid4())
                 
@@ -242,9 +248,6 @@ with st.sidebar:
     except:
         st.warning("Logo uploaden!")
 
-    # --- HIER IS DE FIX VOOR HET "GEKKE KNOPJE" ---
-    # We stoppen het formulier in een Expander. 
-    # Zo is het formulier standaard 'dicht' en klik je het open wanneer je wilt.
     with st.expander("➕ Nieuwe Deal Toevoegen", expanded=True):
         with st.form("add_lead_form", clear_on_submit=True):
             company = st.text_input("Bedrijfsnaam *")
@@ -276,7 +279,6 @@ with st.sidebar:
             
     st.divider()
     
-    # --- DE KNOPPEN ZIJN WEER TERUG ---
     col_ref, col_fix = st.columns(2)
     with col_ref:
         if st.button("🔄 Reload"):
