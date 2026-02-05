@@ -18,7 +18,13 @@ st.markdown("""
     html, body, [class*="css"], .stApp, div, p, span, input, textarea, button, .stMarkdown {
         font-family: 'Montserrat', sans-serif !important;
     }
-
+ /* C. KOPTEKSTEN (Dela Gothic One) */
+    h1, h2, h3, .st.title {
+        font-family: 'Dela Gothic One', cursive !important;
+        letter-spacing: 1px;
+        font-weight: 400 !important;
+    }
+    
     /* C. KOPTEKSTEN (Dela Gothic One) */
     h1, h2, h3, .stHeading {
         font-family: 'Dela Gothic One', cursive !important;
