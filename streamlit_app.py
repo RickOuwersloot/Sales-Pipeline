@@ -7,42 +7,73 @@ import os
 # --- 1. CONFIGURATIE ---
 st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. CSS STYLING ---
+# --- 2. CSS VOOR HET "HOVER EFFECT" ---
 st.markdown("""
     <style>
-    .stApp { background-color: #1e1e1e; }
-    
-    /* Layout: Kolommen naast elkaar */
+    .stApp { background-color: #000; }
+
+    /* LAYOUT: HORIZONTALE KOLOMMEN */
     div[class*="stSortable"] {
         display: flex !important;
         flex-direction: row !important; 
-        gap: 20px !important;
+        gap: 15px !important;
         overflow-x: auto !important;
-        padding-bottom: 20px !important;
+        padding-bottom: 50px !important; /* Ruimte voor uitklappen */
     }
     
-    /* Kolommen zelf: verticaal stapelen */
     div[class*="stSortable"] > div {
         display: flex !important;
         flex-direction: column !important;
-        min-width: 250px !important;
+        min-width: 260px !important;
         width: 280px !important;
     }
 
-    /* Kaartjes styling */
+    /* DE KAARTJES (DIT IS DE MAGIE) */
     div[class*="stSortable"] > div > div {
         background-color: #262730 !important;
         color: white !important;
         border: 1px solid #444 !important;
-        border-radius: 6px !important;
+        border-radius: 8px !important;
         margin-bottom: 10px !important;
-        padding: 12px !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        padding: 15px !important;
+        
+        /* HIER MAKEN WE HET UITKLAP EFFECT */
+        height: 60px !important;       /* Standaard hoogte: klein */
+        overflow: hidden !important;   /* Verberg de rest van de tekst */
+        transition: height 0.3s ease !important; /* Zorg voor soepele animatie */
+        cursor: grab;
+        position: relative;
     }
+
+    /* ALS JE MET DE MUIS EROVER GAAT (HOVER) */
+    div[class*="stSortable"] > div > div:hover {
+        height: auto !important;       /* Word zo lang als nodig */
+        min-height: 150px !important;  /* Minimaal groot genoeg voor info */
+        background-color: #2d2e38 !important; /* Iets lichter kleurtje */
+        border-color: #ff4b4b !important; /* Rood randje bij selectie */
+        z-index: 100 !important;       /* Zorg dat hij 'boven' de rest zweeft */
+        box-shadow: 0 10px 20px rgba(0,0,0,0.5) !important;
+    }
+
+    /* Klein pijltje toevoegen zodat je ziet dat er meer info is */
+    div[class*="stSortable"] > div > div::after {
+        content: "🔽";
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        font-size: 12px;
+        opacity: 0.5;
+    }
+    
+    /* Verberg pijltje als hij open is */
+    div[class*="stSortable"] > div > div:hover::after {
+        opacity: 0;
+    }
+
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. DATABASE (OPSLAAN & LADEN) ---
+# --- 3. DATABASE ---
 DATA_FILE = "leads_database.json"
 
 def load_data():
@@ -57,7 +88,7 @@ def save_data(data):
         with open(DATA_FILE, "w") as f: json.dump(data, f)
     except: pass
 
-# --- 4. DATA INITIALISATIE ---
+# --- 4. INITIALISATIE ---
 def create_lead(company, contact, price, notes):
     return {
         'id': str(uuid.uuid4()),
@@ -73,25 +104,19 @@ if 'leads_data' not in st.session_state:
 if 'board_key' not in st.session_state:
     st.session_state['board_key'] = 0
 
-# --- 5. SIDEBAR (FORMULIER & OPTIES) ---
+# --- 5. SIDEBAR ---
 with st.sidebar:
-    st.title("Instellingen")
-    
-    # --- HIER IS DE MAGIE: DE SCHAKELAAR ---
-    show_details = st.toggle("🔍 Toon details op kaartjes", value=False)
-    st.divider()
-
     st.header("➕ Nieuwe Deal")
     with st.form("add_lead_form", clear_on_submit=True):
         company = st.text_input("Bedrijfsnaam")
         contact = st.text_input("Contactpersoon")
-        price = st.text_input("Waarde (bv. €500)")
+        price = st.text_input("Waarde")
         notes = st.text_area("Notities")
         submitted = st.form_submit_button("Toevoegen")
         
         if submitted:
             if not company:
-                st.error("Naam is verplicht!")
+                st.error("Vul een naam in!")
             else:
                 new_item = create_lead(company, contact, price, notes)
                 st.session_state['leads_data']['col1'].insert(0, new_item)
@@ -122,17 +147,18 @@ kanban_data = []
 for db_key, display_name in columns_config:
     items = []
     for lead in st.session_state['leads_data'][db_key]:
-        # HIER BEPALEN WE WAT JE ZIET
-        if show_details:
-            # Uitgeklapte weergave
-            card_text = f"**{lead['name']}**\n💰 {lead['price']}\n👤 {lead['contact']}\n📝 {lead['notes']}"
-        else:
-            # Compacte weergave (Alleen naam + prijs)
-            # Als er geen prijs is, alleen de naam.
-            price_tag = f" | {lead['price']}" if lead['price'] else ""
-            card_text = f"**{lead['name']}**{price_tag}"
-            
-        items.append(f"{card_text}:::{lead['id']}")
+        # We zetten witregels (\n) tussen de titel en de details.
+        # Door de CSS wordt alles na de eerste regels 'afgeknipt' tot je eroverheen muist.
+        
+        # Regel 1: Titel + Prijs (Altijd zichtbaar)
+        header = f"**{lead['name']}** |  💰 {lead['price']}"
+        
+        # Regel 2+: Details (Zichtbaar bij Hover)
+        # We gebruiken veel enters om te zorgen dat het 'onder de vouw' zit
+        details = f"\n\n👤 **Contact:** {lead['contact']}\n📝 **Note:** {lead['notes']}"
+        
+        items.append(f"{header}{details}:::{lead['id']}")
+        
     kanban_data.append({'header': display_name, 'items': items})
 
 # Bord tekenen
@@ -158,7 +184,6 @@ if len(sorted_data) == 5:
                 new_col_items.append(all_leads[parts[-1]])
         new_state[db_key] = new_col_items
 
-    # Check wijzigingen
     current_ids = [[l['id'] for l in col] for col in st.session_state['leads_data'].values()]
     new_ids = [[l['id'] for l in col] for col in new_state.values()]
     
