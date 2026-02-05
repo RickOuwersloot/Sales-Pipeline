@@ -11,7 +11,7 @@ st.set_page_config(page_title="RO Marketing Pipeline", layout="wide", initial_si
 # --- 2. CSS STYLING (THE BLUE FORCE FIX) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #1e1e1e; }
+    .stApp { background-color: #0E1117; }
     .block-container { max_width: 100% !important; padding: 2rem; }
     
     /* Layout: Banen naast elkaar */
@@ -202,7 +202,7 @@ with st.sidebar:
         st.rerun()
 
 # --- 6. HET BORD ---
-st.title("🚀 Sales Pipeline")
+st.title("🚀 RO Marketing Sales Pipeline")
 
 columns_config = [
     ('col1', 'Te benaderen'),
