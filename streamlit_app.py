@@ -5,40 +5,12 @@ import json
 import gspread
 from google.oauth2.service_account import Credentials
 
-# --- 1. CONFIGURATIE (Nu met Favicon!) ---
-st.set_page_config(
-    page_title="RO Marketing Pipeline", 
-    page_icon="Logo RO Marketing.png", # Je logo als browser-icoontje
-    layout="wide", 
-    initial_sidebar_state="expanded"
-)
+# --- 1. CONFIGURATIE ---
+st.set_page_config(page_title="RO Marketing Pipeline", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. LOGO LINKSBOVEN (De nieuwe manier) ---
-try:
-    # Dit zet het logo netjes linksboven, boven de zijbalk
-    st.logo("Logo RO Marketing.png", icon_image="Logo RO Marketing.png")
-except:
-    pass
-
-# --- 3. CSS STYLING (FONTS + BLUE FORCE) ---
+# --- 2. CSS STYLING (THE BLUE FORCE FIX) ---
 st.markdown("""
     <style>
-    /* A. FONTS IMPORTEREN */
-    @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
-
-    /* B. ALGEMENE STYLING (Alles wordt Montserrat) */
-    html, body, [class*="css"], .stApp, div, p, span, input, textarea, button, .stMarkdown {
-        font-family: 'Montserrat', sans-serif !important;
-    }
-
-    /* C. KOPTEKSTEN (Dela Gothic One) */
-    h1, h2, h3, .stHeading {
-        font-family: 'Dela Gothic One', cursive !important;
-        letter-spacing: 1px; /* Iets meer ruimte tussen letters staat stoer */
-        font-weight: 400 !important; /* Gothic One is van zichzelf al dik */
-    }
-
-    /* D. LAYOUT & KLEUREN */
     .stApp { background-color: #1e1e1e; }
     .block-container { max_width: 100% !important; padding: 2rem; }
     
@@ -64,35 +36,30 @@ st.markdown("""
         padding: 10px !important;
     }
     
-    /* Kaartjes Styling */
+    /* --- HIER ZIT DE FIX VOOR DE RODE KAARTJES --- */
+    /* We targeten specifiek de kaartjes binnen de sortable div */
     div[class*="stSortable"] > div > div {
-        background-color: #2b313e !important;
-        color: white !important;
-        border: 1px solid #2196F3 !important;
-        border-left: 6px solid #2196F3 !important; 
+        background-color: #2b313e !important;   /* Donkerblauw/grijs (Geen Rood meer!) */
+        color: white !important;                 /* Witte tekst */
+        border: 1px solid #2196F3 !important;    /* Blauwe rand rondom */
+        border-left: 6px solid #2196F3 !important; /* Dikke blauwe balk links */
         border-radius: 6px !important;
         padding: 12px !important;
         margin-bottom: 8px !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
-        font-family: 'Montserrat', sans-serif !important; /* Zeker weten dat kaartjes Montserrat zijn */
-        font-weight: 600 !important;
+        font-weight: 500 !important;
     }
     
+    /* Als je eroverheen muist */
     div[class*="stSortable"] > div > div:hover {
-        background-color: #363c4e !important;
-        border-color: #64b5f6 !important;
+        background-color: #363c4e !important;    /* Iets lichter blauw bij hover */
+        border-color: #64b5f6 !important;        /* Lichtere rand */
         transform: translateY(-2px);
-    }
-    
-    /* Knoppen ook Montserrat geven */
-    .stButton > button {
-        font-family: 'Montserrat', sans-serif !important;
-        font-weight: bold !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 4. GOOGLE SHEETS VERBINDING ---
+# --- 3. GOOGLE SHEETS VERBINDING ---
 @st.cache_resource
 def get_google_sheet():
     try:
@@ -173,7 +140,7 @@ def save_data_to_sheet(leads_data):
     except Exception as e:
         st.error(f"Kon niet opslaan: {e}")
 
-# --- 5. INITIALISATIE ---
+# --- 4. INITIALISATIE ---
 if 'leads_data' not in st.session_state:
     with st.spinner('Verbinding maken met Google Sheets...'):
         loaded = load_data_from_sheet()
@@ -192,11 +159,13 @@ def create_lead_obj(company, contact, email, phone, price, notes):
         'phone': phone, 'price': price, 'notes': notes
     }
 
-# --- 6. SIDEBAR ---
+# --- 5. SIDEBAR ---
 with st.sidebar:
-    # Omdat we st.logo gebruiken, hoeft hier geen st.image meer!
-    # Dat staat nu mooi linksboven vastgepind.
-    
+    try:
+        st.image("Logo RO Marketing.png", width=150)
+    except:
+        st.warning("Upload 'Logo RO Marketing.png' naar GitHub!")
+
     st.header("➕ Nieuwe Deal")
     with st.form("add_lead_form", clear_on_submit=True):
         company = st.text_input("Bedrijfsnaam *")
@@ -232,7 +201,7 @@ with st.sidebar:
         if 'leads_data' in st.session_state: del st.session_state['leads_data']
         st.rerun()
 
-# --- 7. HET BORD ---
+# --- 6. HET BORD ---
 st.title("🚀 Sales Pipeline")
 
 columns_config = [
@@ -261,7 +230,7 @@ sorted_data = sort_items(
     key=f"board_{st.session_state['board_key']}"
 )
 
-# --- 8. UPDATE LOGICA ---
+# --- 7. UPDATE LOGICA ---
 if len(sorted_data) == 5:
     new_state = {}
     lead_lookup = {}
@@ -287,7 +256,7 @@ if len(sorted_data) == 5:
         save_data_to_sheet(new_state)
         st.rerun()
 
-# --- 9. DETAILS ---
+# --- 8. DETAILS ---
 st.divider()
 if len(all_leads_list) > 0:
     st.subheader("📋 Deal Details")
