@@ -5,7 +5,38 @@ import uuid
 # --- 1. CONFIGURATIE ---
 st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. DATA & LOGICA ---
+# --- 2. CSS LAYOUT HACKS (DIT ZORGT VOOR DE KOLOMMEN) ---
+st.markdown("""
+    <style>
+    /* Forceer de sortables container om horizontaal te zijn */
+    div[data-testid="stVerticalBlock"] > div > div[class*="stSortable"] {
+        display: flex !important;
+        flex-direction: row !important;
+        gap: 20px !important;
+        overflow-x: auto !important;
+    }
+    
+    /* Zorg dat de kolommen zelf verticaal stapelen */
+    div[class*="stSortable"] > div {
+        display: flex !important;
+        flex-direction: column !important;
+        min-width: 250px !important;
+        flex: 1 !important;
+    }
+
+    /* Styling van de kaartjes */
+    div[class*="stSortable"] > div > div > div {
+        background-color: #262730 !important;
+        color: #ffffff !important;
+        border: 1px solid #4a4a4a !important;
+        border-radius: 6px !important;
+        padding: 12px !important;
+        margin-bottom: 8px !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- 3. DATA & FUNCTIES ---
 def create_lead(company, contact, price, notes):
     return {
         'id': str(uuid.uuid4()),
@@ -15,21 +46,16 @@ def create_lead(company, contact, price, notes):
         'notes': notes
     }
 
-# Start met een schone lei (of behoud wat er is)
 if 'leads_data' not in st.session_state:
     st.session_state['leads_data'] = {
-        'col1': [], # Te benaderen
-        'col2': [], # Opgevolgd
-        'col3': [], # Geland
-        'col4': [], # Geen interesse
-        'trash': [] # Prullenbak
+        'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []
     }
 
 # Forceer refresh teller
 if 'board_key' not in st.session_state:
     st.session_state['board_key'] = 0
 
-# --- 3. SIDEBAR (FORMULIER) ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     st.header("➕ Nieuwe Deal")
     with st.form("add_lead_form", clear_on_submit=True):
@@ -45,8 +71,7 @@ with st.sidebar:
             else:
                 new_item = create_lead(company, contact, price, notes)
                 st.session_state['leads_data']['col1'].insert(0, new_item)
-                st.session_state['board_key'] += 1 # Forceer update
-                st.success(f"Deal '{company}' toegevoegd!")
+                st.session_state['board_key'] += 1
                 st.rerun()
 
     if len(st.session_state['leads_data']['trash']) > 0:
@@ -56,9 +81,10 @@ with st.sidebar:
             st.session_state['board_key'] += 1
             st.rerun()
 
-# --- 4. HET BORD (MET LAYOUT FIX) ---
+# --- 5. HET BORD ---
 st.title("🚀 Sales Pipeline")
 
+# Kolom configuratie
 columns_config = [
     ('col1', 'Te benaderen'),
     ('col2', 'Opgevolgd'),
@@ -71,7 +97,7 @@ kanban_data = []
 for db_key, display_name in columns_config:
     items = []
     for lead in st.session_state['leads_data'][db_key]:
-        # HTML/Markdown opmaak voor het kaartje
+        # Mooie HTML opmaak
         card_content = f"""
             <div style="font-weight:bold; font-size:1.1em;">{lead['name']}</div>
             <div style="font-size:0.9em; color:#ccc;">👤 {lead['contact']}</div>
@@ -82,38 +108,16 @@ for db_key, display_name in columns_config:
         items.append(f"{card_content}:::{lead['id']}")
     kanban_data.append({'header': display_name, 'items': items})
 
-# --- DE TRUC VOOR DE LAYOUT ---
-# We gebruiken 'custom_style' om de container te dwingen 
-# de kolommen naast elkaar te zetten (flex-direction: row).
-style_hack = {
-    "container": {
-        "display": "flex",
-        "flex-direction": "row", # DIT zorgt dat de kolommen naast elkaar komen
-        "align-items": "flex-start",
-        "justify-content": "flex-start",
-        "gap": "20px",
-        "overflow-x": "auto"
-    },
-    "card": {
-        "background-color": "#262730",
-        "border": "1px solid #4a4a4a",
-        "border-radius": "8px",
-        "padding": "10px",
-        "margin-bottom": "10px",
-        "box-shadow": "0px 2px 5px rgba(0,0,0,0.3)"
-    }
-}
-
 # HET BORD TEKENEN
+# BELANGRIJK: Hier heb ik 'custom_style' WEGGEHAALD om de error te voorkomen.
+# De layout wordt nu geregeld door het CSS blok helemaal bovenaan.
 sorted_data = sort_items(
     kanban_data, 
     multi_containers=True, 
-    direction='vertical', # Bedrijven onder elkaar IN de kolom
-    custom_style=style_hack, # Kolommen naast elkaar
     key=f"board_{st.session_state['board_key']}"
 )
 
-# --- 5. UPDATE LOGICA ---
+# --- 6. UPDATE LOGICA ---
 if len(sorted_data) == 5:
     new_state = {}
     all_leads = {}
