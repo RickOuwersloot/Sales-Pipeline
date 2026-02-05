@@ -7,20 +7,22 @@ import os
 # --- 1. CONFIGURATIE ---
 st.set_page_config(page_title="Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. CSS VOOR HET "HOVER EFFECT" ---
+# --- 2. CSS STYLING (DE MAGISCHE TRUC) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #000; }
+    /* Algemene achtergrond */
+    .stApp { background-color: #1e1e1e; }
 
-    /* LAYOUT: HORIZONTALE KOLOMMEN */
+    /* LAYOUT: Kolommen naast elkaar */
     div[class*="stSortable"] {
         display: flex !important;
         flex-direction: row !important; 
         gap: 15px !important;
         overflow-x: auto !important;
-        padding-bottom: 50px !important; /* Ruimte voor uitklappen */
+        padding-bottom: 50px !important;
     }
     
+    /* Kolommen: Items onder elkaar */
     div[class*="stSortable"] > div {
         display: flex !important;
         flex-direction: column !important;
@@ -28,52 +30,52 @@ st.markdown("""
         width: 280px !important;
     }
 
-    /* DE KAARTJES (DIT IS DE MAGIE) */
+    /* DE KAARTJES STYLING */
     div[class*="stSortable"] > div > div {
-        background-color: #111 !important;
-        color: white !important;
+        background-color: #262730 !important; /* Donkergrijs */
+        color: #ffffff !important; /* Witte tekst */
         border: 1px solid #444 !important;
         border-radius: 8px !important;
         margin-bottom: 10px !important;
         padding: 15px !important;
+        font-family: sans-serif !important;
+        white-space: pre-wrap !important; /* Zorg dat enters werken */
         
-        /* HIER MAKEN WE HET UITKLAP EFFECT */
-        height: 60px !important;       /* Standaard hoogte: klein */
-        overflow: hidden !important;   /* Verberg de rest van de tekst */
-        transition: height 0.3s ease !important; /* Zorg voor soepele animatie */
-        cursor: grab;
+        /* HIER ZIT DE TRUC: Verberg alles wat te lang is */
+        height: 60px !important;
+        overflow: hidden !important; 
+        transition: height 0.3s ease !important;
         position: relative;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        cursor: grab;
     }
 
-    /* ALS JE MET DE MUIS EROVER GAAT (HOVER) */
+    /* HOVER EFFECT: Klap open als je muis erop staat */
     div[class*="stSortable"] > div > div:hover {
-        height: auto !important;       /* Word zo lang als nodig */
-        min-height: 150px !important;  /* Minimaal groot genoeg voor info */
-        background-color: #2d2e38 !important; /* Iets lichter kleurtje */
-        border-color: #ff4b4b !important; /* Rood randje bij selectie */
-        z-index: 100 !important;       /* Zorg dat hij 'boven' de rest zweeft */
-        box-shadow: 0 10px 20px rgba(0,0,0,0.5) !important;
+        height: auto !important;     /* Word zo lang als de tekst */
+        min-height: 120px !important; 
+        background-color: #32333d !important; /* Iets lichter bij hover */
+        border-color: #ff4b4b !important; /* Rood randje */
+        z-index: 999;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.5);
     }
 
-    /* Klein pijltje toevoegen zodat je ziet dat er meer info is */
+    /* Pijltje toevoegen */
     div[class*="stSortable"] > div > div::after {
         content: "🔽";
         position: absolute;
-        top: 15px;
-        right: 15px;
+        top: 10px;
+        right: 10px;
         font-size: 12px;
-        opacity: 0.5;
+        opacity: 0.7;
     }
-    
-    /* Verberg pijltje als hij open is */
     div[class*="stSortable"] > div > div:hover::after {
-        opacity: 0;
+        opacity: 0; /* Verberg pijltje bij openklappen */
     }
-
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. DATABASE ---
+# --- 3. DATABASE FUNCTIES ---
 DATA_FILE = "leads_database.json"
 
 def load_data():
@@ -110,13 +112,13 @@ with st.sidebar:
     with st.form("add_lead_form", clear_on_submit=True):
         company = st.text_input("Bedrijfsnaam")
         contact = st.text_input("Contactpersoon")
-        price = st.text_input("Waarde")
+        price = st.text_input("Waarde (bv. €500)")
         notes = st.text_area("Notities")
         submitted = st.form_submit_button("Toevoegen")
         
         if submitted:
             if not company:
-                st.error("Vul een naam in!")
+                st.error("Naam is verplicht!")
             else:
                 new_item = create_lead(company, contact, price, notes)
                 st.session_state['leads_data']['col1'].insert(0, new_item)
@@ -147,17 +149,22 @@ kanban_data = []
 for db_key, display_name in columns_config:
     items = []
     for lead in st.session_state['leads_data'][db_key]:
-        # We zetten witregels (\n) tussen de titel en de details.
-        # Door de CSS wordt alles na de eerste regels 'afgeknipt' tot je eroverheen muist.
+        # STAP 1: Clean Text (Geen Markdown sterretjes)
+        # We gebruiken Hoofdletters voor de bedrijfsnaam om het op te laten vallen
+        title = f"{lead['name'].upper()} | {lead['price']}"
         
-        # Regel 1: Titel + Prijs (Altijd zichtbaar)
-        header = f"**{lead['name']}** |  💰 {lead['price']}"
+        # STAP 2: De Inhoud
+        details = f"👤 {lead['contact']}\n📝 {lead['notes']}"
         
-        # Regel 2+: Details (Zichtbaar bij Hover)
-        # We gebruiken veel enters om te zorgen dat het 'onder de vouw' zit
-        details = f"\n\n👤 **Contact:** {lead['contact']}\n📝 **Note:** {lead['notes']}"
+        # STAP 3: De ID verstoppen
+        # We voegen 20 witregels toe. Hierdoor staat de ID zover naar beneden
+        # dat je hem nooit ziet, zelfs niet als je hovert.
+        spacer = "\n" * 20 
+        hidden_id = f":::{lead['id']}"
         
-        items.append(f"{header}{details}:::{lead['id']}")
+        full_card_text = f"{title}\n\n{details}{spacer}{hidden_id}"
+        
+        items.append(full_card_text)
         
     kanban_data.append({'header': display_name, 'items': items})
 
@@ -179,9 +186,12 @@ if len(sorted_data) == 5:
         db_key = columns_config[i][0]
         new_col_items = []
         for item_str in col_data['items']:
+            # We splitsen op ':::' om de ID terug te vinden
             parts = item_str.split(':::')
-            if len(parts) > 1 and parts[-1] in all_leads:
-                new_col_items.append(all_leads[parts[-1]])
+            if len(parts) > 1:
+                item_id = parts[-1] # Pak het laatste stukje (de ID)
+                if item_id in all_leads:
+                    new_col_items.append(all_leads[item_id])
         new_state[db_key] = new_col_items
 
     current_ids = [[l['id'] for l in col] for col in st.session_state['leads_data'].values()]
