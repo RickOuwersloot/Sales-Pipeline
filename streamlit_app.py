@@ -3,15 +3,15 @@ from streamlit_sortables import sort_items
 import uuid
 import json
 import gspread
-from google.oauth2.service_account import Credentials # De nieuwe, moderne manier
+from google.oauth2.service_account import Credentials
 
 # --- 1. CONFIGURATIE ---
-st.set_page_config(page_title="RO Marketing | Sales Pipeline", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="RO Marketing Pipeline", layout="wide", initial_sidebar_state="expanded")
 
 # --- 2. CSS STYLING ---
 st.markdown("""
     <style>
-    .stApp { background-color: #0E1117; }
+    .stApp { background-color: #1e1e1e; }
     .block-container { max_width: 100% !important; padding: 2rem; }
     
     /* Layout: Banen naast elkaar */
@@ -37,7 +37,7 @@ st.markdown("""
     }
     /* Kaartjes */
     div[class*="stSortable"] > div > div {
-        background-color: #3E6BFF !important;
+        background-color: #3b3d45 !important;
         color: white !important;
         border-left: 4px solid #ff4b4b !important;
         border-radius: 6px !important;
@@ -46,23 +46,19 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
     }
     div[class*="stSortable"] > div > div:hover {
-        background-color: #3E6BFF !important;
+        background-color: #454752 !important;
         transform: translateY(-2px);
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. GOOGLE SHEETS VERBINDING (MODERNE VERSIE) ---
+# --- 3. GOOGLE SHEETS VERBINDING ---
 @st.cache_resource
 def get_google_sheet():
     try:
-        # 1. Haal de tekst op uit Secrets
         json_text = st.secrets["service_account"]
-        
-        # 2. Maak er een 'woordenboek' van (strict=False helpt tegen foutjes)
         creds_dict = json.loads(json_text, strict=False)
         
-        # 3. Verbinden met de nieuwe Google Auth tool
         scopes = [
             "https://www.googleapis.com/auth/spreadsheets",
             "https://www.googleapis.com/auth/drive"
@@ -70,8 +66,7 @@ def get_google_sheet():
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         client = gspread.authorize(creds)
         
-        # 4. Open de sheet
-        # LET OP: Zorg dat je Google Sheet PRECIES "MijnSalesCRM" heet (hoofdlettergevoelig!)
+        # Zorg dat deze naam klopt!
         sheet = client.open("MijnSalesCRM").sheet1 
         return sheet
         
@@ -80,7 +75,6 @@ def get_google_sheet():
         return None
 
 def load_data_from_sheet():
-    """Haalt alle data op en sorteert het in kolommen voor de app"""
     try:
         sheet = get_google_sheet()
         if not sheet: return None
@@ -115,12 +109,10 @@ def load_data_from_sheet():
         return None
 
 def save_data_to_sheet(leads_data):
-    """Zet de data om naar rijen en overschrijft de Google Sheet"""
     try:
         sheet = get_google_sheet()
         if not sheet: return
 
-        # De Koppen van je kolommen (Moet matchen met je Sheet!)
         rows_to_write = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Notities', 'ID']]
         
         col_map = {
@@ -166,6 +158,13 @@ def create_lead_obj(company, contact, email, phone, price, notes):
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
+    # --- HIER IS JE LOGO ---
+    # We proberen het logo te tonen, als het bestand nog niet bestaat geven we geen foutmelding
+    try:
+        st.image("Logo RO Marketing.png", use_container_width=True)
+    except:
+        st.warning("Upload 'Logo RO Marketing.png' naar GitHub!")
+
     st.header("➕ Nieuwe Deal")
     with st.form("add_lead_form", clear_on_submit=True):
         company = st.text_input("Bedrijfsnaam *")
