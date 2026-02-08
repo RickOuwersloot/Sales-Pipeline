@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="auto" 
 )
 
-# --- 2. CSS STYLING (MET DE PIJLTJES FIX 🏹) ---
+# --- 2. CSS STYLING (ALLE FIXES GEBUNDELD 🛠️) ---
 st.markdown("""
     <style>
     /* A. FONTS IMPORTEREN */
@@ -30,7 +30,6 @@ st.markdown("""
     
     /* C. CRUCIALE FIX VOOR DE PIJLTJES / ICONEN */
     /* We resetten de knoppen in de header en sidebar control terug naar standaard */
-    /* Hierdoor kunnen de icoontjes weer geladen worden */
     button[kind="header"], 
     [data-testid="stSidebarCollapsedControl"] button,
     [data-testid="stSidebarExpandedControl"] button,
@@ -129,7 +128,8 @@ def fix_missing_ids():
         if not sheet: return
         
         records = sheet.get_all_records()
-        updated_rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Notities', 'ID']]
+        # LET OP: Website toegevoegd aan de structuur
+        updated_rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Notities', 'ID']]
         
         existing_ids = set()
         changes_made = False
@@ -153,6 +153,7 @@ def fix_missing_ids():
                 row.get('Contact', ''),
                 row.get('Email', ''),
                 row.get('Telefoon', ''),
+                row.get('Website', ''), # Nieuw veld meenemen
                 row.get('Notities', ''),
                 new_id
             ])
@@ -196,6 +197,7 @@ def load_data_from_sheet():
                     'contact': row.get('Contact'),
                     'email': row.get('Email'),
                     'phone': row.get('Telefoon'),
+                    'website': row.get('Website'), # Nieuw veld inlezen
                     'notes': row.get('Notities')
                 }
                 status = row.get('Status', 'Te benaderen')
@@ -210,7 +212,8 @@ def save_data_to_sheet(leads_data):
         sheet = get_google_sheet()
         if not sheet: return
 
-        rows_to_write = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Notities', 'ID']]
+        # LET OP: Header aangepast met Website
+        rows_to_write = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Notities', 'ID']]
         col_map = {
             'col1': 'Te benaderen', 'col2': 'Opgevolgd',
             'col3': 'Geland', 'col4': 'Geen interesse', 'trash': 'Prullenbak'
@@ -223,7 +226,9 @@ def save_data_to_sheet(leads_data):
                     status_text,
                     item.get('name', ''), item.get('price', ''),
                     item.get('contact', ''), item.get('email', ''),
-                    item.get('phone', ''), item.get('notes', ''),
+                    item.get('phone', ''), 
+                    item.get('website', ''), # Nieuw veld opslaan
+                    item.get('notes', ''),
                     item.get('id', str(uuid.uuid4()))
                 ]
                 rows_to_write.append(row)
@@ -245,11 +250,11 @@ if 'leads_data' not in st.session_state:
 if 'board_key' not in st.session_state:
     st.session_state['board_key'] = 0
 
-def create_lead_obj(company, contact, email, phone, price, notes):
+def create_lead_obj(company, contact, email, phone, website, price, notes):
     return {
         'id': str(uuid.uuid4()),
         'name': company, 'contact': contact, 'email': email, 
-        'phone': phone, 'price': price, 'notes': notes
+        'phone': phone, 'website': website, 'price': price, 'notes': notes
     }
 
 # --- 5. SIDEBAR ---
@@ -265,6 +270,7 @@ with st.sidebar:
             contact = st.text_input("Contactpersoon")
             email = st.text_input("Emailadres")
             phone = st.text_input("Telefoonnummer")
+            website = st.text_input("Website (bv. www.bedrijf.nl)") # Nieuw invulveld
             price = st.text_input("Waarde (bv. €1500)")
             notes = st.text_area("Notities")
             
@@ -274,7 +280,7 @@ with st.sidebar:
                 if not company:
                     st.error("Vul een naam in!")
                 else:
-                    new_item = create_lead_obj(company, contact, email, phone, price, notes)
+                    new_item = create_lead_obj(company, contact, email, phone, website, price, notes)
                     st.session_state['leads_data']['col1'].insert(0, new_item)
                     save_data_to_sheet(st.session_state['leads_data'])
                     st.session_state['board_key'] += 1
@@ -395,5 +401,16 @@ if len(all_leads_list) > 0:
                     st.write(f"👤 **{sel_deal.get('contact', '-')}")
                     st.write(f"📧 {sel_deal.get('email', '-')}")
                     st.write(f"☎️ {sel_deal.get('phone', '-')}")
+                    
+                    # NIEUW: Website Link
+                    if sel_deal.get('website'):
+                        # Zorg dat er http:// voor staat als de gebruiker dat vergeet
+                        url = sel_deal['website']
+                        if not url.startswith('http'):
+                            url = 'https://' + url
+                        st.markdown(f"🌐 [{sel_deal['website']}]({url})")
+                    else:
+                        st.write("🌐 -")
+
                 st.markdown("---")
                 st.info(sel_deal['notes'] if sel_deal['notes'] else "Geen notities.")
