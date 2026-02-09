@@ -262,7 +262,7 @@ with tab_pipeline:
                         if sel.get('website'): st.markdown(f"🌐 [{sel['website']}]({'https://'+sel['website'] if not sel['website'].startswith('http') else sel['website']})")
                     st.markdown("---"); st.info(sel.get('notes') or "Geen notities.")
 
-# ================= TAB 2: TAKEN (EDITABLE) =================
+# ================= TAB 2: TAKEN (EDITABLE FIX 🛠️) =================
 with tab_tasks:
     st.header("✅ Projectmanagement")
     
@@ -325,10 +325,15 @@ with tab_tasks:
                     if task.get('Notities'): st.caption(f"📝 {task['Notities']}")
                 
                 with c_meta:
-                    prio_color = "#ff4b4b" if "Hoog" in str(task.get('Prioriteit')) else "#ffa421" if "Midden" in str(task.get('Prioriteit')) else "#00c0f2"
+                    prio_raw = task.get('Prioriteit', "⏺️ Midden")
+                    # VEILIGHEIDSCHECK VOOR PRIORITEIT (HIER ZIT DE FIX VOOR DE ERROR)
+                    if prio_raw not in ["🔥 Hoog", "⏺️ Midden", "💤 Laag"]:
+                        prio_raw = "⏺️ Midden"
+                    
+                    prio_color = "#ff4b4b" if "Hoog" in prio_raw else "#ffa421" if "Midden" in prio_raw else "#00c0f2"
                     st.markdown(f"""
                     <div style='display:flex;gap:10px;align-items:center;justify-content:flex-end;opacity:{opacity}'>
-                        <span style='color:{prio_color};font-weight:bold;font-size:0.9em'>{task.get('Prioriteit', '⏺️ Midden')}</span>
+                        <span style='color:{prio_color};font-weight:bold;font-size:0.9em'>{prio_raw}</span>
                         <span style='font-weight:700;color:#eee'>📅 {task['Deadline']}</span>
                         <span style='background:#333;padding:4px 8px;border-radius:4px;font-size:0.8em;border:1px solid #444'>{task['Categorie']}</span>
                     </div>
@@ -345,8 +350,11 @@ with tab_tasks:
                         with ec2:
                             d_val = datetime.strptime(task['Deadline'], "%Y-%m-%d").date() if task['Deadline'] else date.today()
                             e_date = st.date_input("Deadline", d_val)
-                            p_idx = ["🔥 Hoog", "⏺️ Midden", "💤 Laag"].index(task.get('Prioriteit', "⏺️ Midden"))
-                            e_prio = st.selectbox("Prioriteit", ["🔥 Hoog", "⏺️ Midden", "💤 Laag"], index=p_idx)
+                            
+                            # VEILIGHEIDSCHECK OOK HIER
+                            p_safe = task.get('Prioriteit', "⏺️ Midden")
+                            if p_safe not in ["🔥 Hoog", "⏺️ Midden", "💤 Laag"]: p_safe = "⏺️ Midden"
+                            e_prio = st.selectbox("Prioriteit", ["🔥 Hoog", "⏺️ Midden", "💤 Laag"], index=["🔥 Hoog", "⏺️ Midden", "💤 Laag"].index(p_safe))
                         
                         e_note = st.text_area("Notities & Opmerkingen", task.get('Notities', ''))
                         
