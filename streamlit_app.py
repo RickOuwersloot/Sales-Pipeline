@@ -43,65 +43,67 @@ if not check_password():
 # --- CONSTANTEN ---
 TASK_CATEGORIES = ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"]
 HOURLY_RATE = 30.0
+# DE NIEUWE ROOD TINT (Licht Rood / Koraal)
+THEME_COLOR = "#ff6b6b" 
 
 # --- 2. CSS STYLING ---
-st.markdown("""
+st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
 
-    .stApp { font-family: 'Montserrat', sans-serif !important; }
-    p, input, textarea, .stMarkdown, h1, h2, h3, h4, h5, h6, .stSelectbox, .stTextInput, .stDateInput, .stNumberInput { 
+    .stApp {{ font-family: 'Montserrat', sans-serif !important; }}
+    p, input, textarea, .stMarkdown, h1, h2, h3, h4, h5, h6, .stSelectbox, .stTextInput, .stDateInput, .stNumberInput {{ 
         font-family: 'Montserrat', sans-serif !important; 
-    }
+    }}
     
-    button, i, span[class^="material-symbols"] { font-family: inherit !important; }
+    button, i, span[class^="material-symbols"] {{ font-family: inherit !important; }}
     [data-testid="stSidebarCollapsedControl"] button,
-    [data-testid="stSidebarExpandedControl"] button { font-family: "Source Sans Pro", sans-serif !important; }
+    [data-testid="stSidebarExpandedControl"] button {{ font-family: "Source Sans Pro", sans-serif !important; }}
 
-    h1, h2, h3, .stHeading, .st-emotion-cache-10trblm {
+    h1, h2, h3, .stHeading, .st-emotion-cache-10trblm {{
         font-family: 'Dela Gothic One', cursive !important;
         letter-spacing: 1px;
         font-weight: 400 !important;
-    }
+    }}
 
-    .stApp { background-color: #0E1117; }
-    .block-container { max_width: 100% !important; padding: 2rem; }
+    .stApp {{ background-color: #0E1117; }}
+    .block-container {{ max_width: 100% !important; padding: 2rem; }}
     
-    /* TABS */
-    .stTabs [data-baseweb="tab-list"] { gap: 20px; overflow-x: auto; flex-wrap: nowrap; }
-    .stTabs [data-baseweb="tab"] {
+    /* TABS - NU IN HET ROOD */
+    .stTabs [data-baseweb="tab-list"] {{ gap: 20px; overflow-x: auto; flex-wrap: nowrap; }}
+    .stTabs [data-baseweb="tab"] {{
         height: 50px; white-space: nowrap; background-color: #25262b;
         border-radius: 5px 5px 0 0; gap: 1px; padding: 10px; color: white;
-    }
-    .stTabs [aria-selected="true"] { background-color: #2196F3 !important; color: white !important; }
+    }}
+    .stTabs [aria-selected="true"] {{ background-color: {THEME_COLOR} !important; color: white !important; }}
 
     /* METRICS BOX */
-    div[data-testid="metric-container"] {
+    div[data-testid="metric-container"] {{
         background-color: #25262b; border: 1px solid #333; padding: 20px; border-radius: 10px; color: white;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 10px;
-    }
+    }}
     
-    /* KANBAN */
-    div[class*="stSortable"] { display: flex; flex-direction: row; overflow-x: auto; gap: 15px; padding-bottom: 20px; }
-    div[class*="stSortable"] > div {
+    /* KANBAN (OOK ROOD ACCENT) */
+    div[class*="stSortable"] {{ display: flex; flex-direction: row; overflow-x: auto; gap: 15px; padding-bottom: 20px; }}
+    div[class*="stSortable"] > div {{
         display: flex; flex-direction: column; flex: 0 0 auto; width: 300px;
         background-color: #25262b; border: 1px solid #333; border-radius: 10px; padding: 10px;
-    }
-    div[class*="stSortable"] div { background-color: #2b313e !important; color: white !important; border-radius: 6px !important; }
-    div[class*="stSortable"] > div > div {
-        border: 1px solid #2196F3 !important; border-left: 6px solid #2196F3 !important; 
+    }}
+    div[class*="stSortable"] div {{ background-color: #2b313e !important; color: white !important; border-radius: 6px !important; }}
+    div[class*="stSortable"] > div > div {{
+        border: 1px solid {THEME_COLOR} !important; border-left: 6px solid {THEME_COLOR} !important; 
         margin-bottom: 8px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
-    }
-    div[class*="stSortable"] > div > div:hover {
-        background-color: #363c4e !important; border-color: #64b5f6 !important; transform: translateY(-2px);
-    }
+    }}
+    div[class*="stSortable"] > div > div:hover {{
+        background-color: #363c4e !important; border-color: #ff9e9e !important; transform: translateY(-2px);
+    }}
 
-    @media (max-width: 768px) {
-        .block-container { padding: 1rem 0.5rem !important; }
-        h1 { font-size: 1.8rem !important; }
-        div[class*="stSortable"] > div { width: 260px !important; min-width: 260px !important; }
-        div[style*="display:flex;gap:10px"] { flex-wrap: wrap !important; }
-    }
+    @media (max-width: 768px) {{
+        .block-container {{ padding: 1rem 0.5rem !important; }}
+        h1 {{ font-size: 1.8rem !important; }}
+        div[class*="stSortable"] > div {{ width: 260px !important; min-width: 260px !important; }}
+        div[style*="display:flex;gap:10px"] {{ flex-wrap: wrap !important; }}
+    }}
     </style>
 """, unsafe_allow_html=True)
 
@@ -226,20 +228,12 @@ def add_task(klant, taak, categorie, deadline, prioriteit, notities):
     try: sheet.append_row(row)
     except: time.sleep(1); sheet.append_row(row)
 
-# NIEUW: FUNCTIE OM MEERDERE TAKEN TEGELIJK TOE TE VOEGEN
 def add_batch_tasks(tasks_list):
-    """Voegt een lijst met taken in één keer toe."""
     sheet = get_sheet("Taken")
     if not sheet: st.error("Tabblad Taken mist"); return
-    
     rows_to_add = []
     for t in tasks_list:
-        # FALSE, Klant, Taak, Categorie, Deadline, Prioriteit, Notities, ID
-        rows_to_add.append([
-            "FALSE", t['klant'], t['taak'], t['cat'], 
-            str(t['deadline']), t['prio'], "", str(uuid.uuid4())
-        ])
-    
+        rows_to_add.append(["FALSE", t['klant'], t['taak'], t['cat'], str(t['deadline']), t['prio'], "", str(uuid.uuid4())])
     try: sheet.append_rows(rows_to_add)
     except: time.sleep(1); sheet.append_rows(rows_to_add)
 
@@ -358,7 +352,7 @@ with tab_dash:
         c_chart, c_list = st.columns([2, 1])
         with c_chart:
             st.subheader("📈 Omzetverloop per Maand")
-            if not df.empty: st.line_chart(df.groupby('Maand')['Totaal'].sum(), color="#2196F3")
+            if not df.empty: st.line_chart(df.groupby('Maand')['Totaal'].sum(), color=THEME_COLOR) # Nu Rood
             
         with c_list:
             st.subheader("🔧 Contracten")
@@ -516,7 +510,7 @@ with tab_pipeline:
 with tab_tasks:
     st.header("✅ Projectmanagement")
     
-    # 1. STANDAARD TAKEN (NIEUW)
+    # 1. STANDAARD TAKEN (NU BOVENAAN!)
     with st.expander("⚡ Snel Taken Toevoegen (Checklists)", expanded=False):
         st.caption("Kies een standaardlijst om in één keer toe te voegen aan een klant.")
         sl_c1, sl_c2 = st.columns(2)
@@ -525,7 +519,6 @@ with tab_tasks:
         with sl_c2:
             st.write("") # Spacer
             st.write("") # Spacer
-            # KNOPPEN
             c_btn1, c_btn2 = st.columns(2)
             if c_btn1.button("🌐 Nieuwe Website"):
                 tasks = [
@@ -540,13 +533,9 @@ with tab_tasks:
                 st.rerun()
                 
             if c_btn2.button("🔧 Onderhoud Starten"):
-                # DATUM LOGICA: Volgende 1 Jan en 1 Juni
                 today = date.today()
-                # 1. Eerstvolgende 1 Januari
                 year_jan = today.year + 1 if today >= date(today.year, 1, 1) else today.year
                 d_jan = date(year_jan, 1, 1)
-                
-                # 2. Eerstvolgende 1 Juni
                 year_jun = today.year + 1 if today >= date(today.year, 6, 1) else today.year
                 d_jun = date(year_jun, 6, 1)
                 
@@ -558,17 +547,19 @@ with tab_tasks:
                 st.success(f"Facturatie taken ingepland voor {sl_klant}!")
                 st.rerun()
 
-    st.divider()
-
-    c_filt1, c_filt2 = st.columns(2)
-    with c_filt1: k_filt = st.selectbox("📂 Filter op Klant:", ["Alle Projecten"] + all_companies, key="task_filter_client")
-    with c_filt2: c_filt = st.selectbox("🏷️ Filter op Categorie:", ["Alle Categorieën"] + TASK_CATEGORIES, key="task_filter_cat")
-    
+    # 2. LOSSE TAAK TOEVOEGEN (NU HIERONDER)
     with st.expander(f"➕ Losse Taak toevoegen", expanded=False):
         with st.form("new_task"):
             ca, cb = st.columns(2)
             with ca:
-                n_klant = k_filt if k_filt != "Alle Projecten" else st.selectbox("Klant", all_companies, key="new_task_client")
+                # Hier moeten we even een workaround doen voor de 'default' klant
+                # Als we al een filter hebben, gebruiken we die, anders de eerste uit de lijst
+                def_klant_idx = 0
+                if 'task_filter_client' in st.session_state and st.session_state['task_filter_client'] != "Alle Projecten":
+                     if st.session_state['task_filter_client'] in all_companies:
+                         def_klant_idx = all_companies.index(st.session_state['task_filter_client'])
+
+                n_klant = st.selectbox("Klant", all_companies, index=def_klant_idx, key="new_task_client")
                 n_taak = st.text_input("Taak")
                 n_cat = st.selectbox("Categorie", TASK_CATEGORIES, key="new_task_cat")
             with cb:
@@ -578,6 +569,14 @@ with tab_tasks:
             if st.form_submit_button("Opslaan"):
                 add_task(n_klant, n_taak, n_cat, n_date, n_prio, n_note); st.success("Opgeslagen!"); st.rerun()
 
+    st.divider()
+
+    # 3. FILTERS (NU HIERONDER)
+    c_filt1, c_filt2 = st.columns(2)
+    with c_filt1: k_filt = st.selectbox("📂 Filter op Klant:", ["Alle Projecten"] + all_companies, key="task_filter_client")
+    with c_filt2: c_filt = st.selectbox("🏷️ Filter op Categorie:", ["Alle Categorieën"] + TASK_CATEGORIES, key="task_filter_cat")
+
+    # 4. DE LIJST
     all_tasks = load_tasks()
     disp = all_tasks
     if k_filt != "Alle Projecten": disp = [t for t in disp if t.get('Klant') == k_filt]
@@ -599,7 +598,7 @@ with tab_tasks:
                     if st.checkbox("", value=done, key=f"chk_{t['ID']}") != done:
                         toggle_task_status(t['ID'], str(t.get('Status')).upper()); st.rerun()
                 with c_inf:
-                    kl = f"<span style='color:#2196F3;font-weight:bold'>{t.get('Klant')}</span> | " if k_filt == "Alle Projecten" else ""
+                    kl = f"<span style='color:{THEME_COLOR};font-weight:bold'>{t.get('Klant')}</span> | " if k_filt == "Alle Projecten" else ""
                     st.markdown(f"<div style='opacity:{opac};{strike}'>{kl}<strong>{t['Taak']}</strong></div>", unsafe_allow_html=True)
                     if t.get('Notities'): st.caption(f"📝 {t['Notities']}")
                 with c_met:
