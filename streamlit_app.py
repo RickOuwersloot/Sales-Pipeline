@@ -17,39 +17,28 @@ st.set_page_config(
 )
 
 # ==========================================
-# 🔐 BEVEILIGING (LOGIN SYSTEEM)
+# 🔐 BEVEILIGING
 # ==========================================
 def check_password():
-    """Vraagt om wachtwoord en checkt dit met Streamlit Secrets."""
-    
     def password_entered():
-        # Check of het ingevoerde wachtwoord klopt met wat in Secrets staat
         if st.session_state["password"] == st.secrets["passwords"]["mijn_wachtwoord"]:
             st.session_state["password_correct"] = True
-            del st.session_state["password"]  # Wachtwoord uit geheugen wissen
+            del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
 
-    # Als we al ingelogd zijn, return True
     if st.session_state.get("password_correct", False):
         return True
 
-    # Toon de login velden
     st.markdown("### 🔐 Inloggen RO Marketing CRM")
     st.text_input("Voer wachtwoord in", type="password", on_change=password_entered, key="password")
     
     if "password_correct" in st.session_state and not st.session_state["password_correct"]:
         st.error("😕 Wachtwoord onjuist")
-
     return False
 
-# STOP DE APP ALS HET WACHTWOORD NIET KLOPT
 if not check_password():
     st.stop()
-
-# ==========================================
-# HIERONDER BEGINT DE REST VAN DE APP PAS
-# ==========================================
 
 # --- CONSTANTEN ---
 TASK_CATEGORIES = ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"]
@@ -79,9 +68,9 @@ st.markdown("""
     .block-container { max_width: 100% !important; padding: 2rem; }
     
     /* TABS */
-    .stTabs [data-baseweb="tab-list"] { gap: 20px; }
+    .stTabs [data-baseweb="tab-list"] { gap: 20px; overflow-x: auto; flex-wrap: nowrap; }
     .stTabs [data-baseweb="tab"] {
-        height: 50px; white-space: pre-wrap; background-color: #25262b;
+        height: 50px; white-space: nowrap; background-color: #25262b;
         border-radius: 5px 5px 0 0; gap: 1px; padding: 10px; color: white;
     }
     .stTabs [aria-selected="true"] { background-color: #2196F3 !important; color: white !important; }
@@ -89,7 +78,7 @@ st.markdown("""
     /* METRICS BOX */
     div[data-testid="metric-container"] {
         background-color: #25262b; border: 1px solid #333; padding: 20px; border-radius: 10px; color: white;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 10px;
     }
     
     /* KANBAN */
@@ -106,8 +95,7 @@ st.markdown("""
     div[class*="stSortable"] > div > div:hover {
         background-color: #363c4e !important; border-color: #64b5f6 !important; transform: translateY(-2px);
     }
-    
-    /* MOBILE TWEAKS */
+
     @media (max-width: 768px) {
         .block-container { padding: 1rem 0.5rem !important; }
         h1 { font-size: 1.8rem !important; }
@@ -137,7 +125,7 @@ def get_sheet(sheet_name="Sheet1"):
         except: return None
     return None
 
-# --- PIPELINE FUNCTIES ---
+# --- PIPELINE FUNCTIES (AANGEPAST VOOR 2 LINKS) ---
 def load_pipeline_data():
     sheet = get_sheet("Sheet1")
     if not sheet: return None
@@ -151,9 +139,14 @@ def load_pipeline_data():
             raw_id = str(row.get('ID', '')).strip()
             lead = {
                 'id': raw_id if raw_id else str(uuid.uuid4()), 
-                'name': row.get('Bedrijf'), 'price': row.get('Prijs'),
-                'contact': row.get('Contact'), 'email': row.get('Email'),
-                'phone': row.get('Telefoon'), 'project_url': row.get('Website'), 'notes': row.get('Notities')
+                'name': row.get('Bedrijf'), 
+                'price': row.get('Prijs'),
+                'contact': row.get('Contact'), 
+                'email': row.get('Email'),
+                'phone': row.get('Telefoon'), 
+                'website': row.get('Website'),        # De "echte" website
+                'project_map': row.get('Projectmap'), # De Google Drive link
+                'notes': row.get('Notities')
             }
             col_key = status_map.get(row.get('Status', 'Te benaderen'), 'col1')
             data_structure[col_key].append(lead)
@@ -162,12 +155,17 @@ def load_pipeline_data():
 def save_pipeline_data(leads_data):
     sheet = get_sheet("Sheet1")
     if not sheet: return
-    rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Notities', 'ID']]
+    # HEADER UPDATE: Projectmap toegevoegd
+    rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'ID']]
     col_map = {'col1': 'Te benaderen', 'col2': 'Opgevolgd', 'col3': 'Geland', 'col4': 'Geen interesse', 'trash': 'Prullenbak'}
     for col_key, items in leads_data.items():
         st_txt = col_map.get(col_key, 'Te benaderen')
         for i in items:
-            rows.append([st_txt, i.get('name',''), i.get('price',''), i.get('contact',''), i.get('email',''), i.get('phone',''), i.get('project_url',''), i.get('notes',''), i.get('id', str(uuid.uuid4()))])
+            rows.append([
+                st_txt, i.get('name',''), i.get('price',''), i.get('contact',''), 
+                i.get('email',''), i.get('phone',''), i.get('website',''), 
+                i.get('project_map',''), i.get('notes',''), i.get('id', str(uuid.uuid4()))
+            ])
     try: sheet.clear(); sheet.update(rows)
     except: time.sleep(2); sheet.clear(); sheet.update(rows)
 
@@ -176,14 +174,19 @@ def fix_missing_ids():
     if not sheet: return
     try: records = sheet.get_all_records()
     except: return
-    rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Notities', 'ID']]
+    # HEADER UPDATE
+    rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'ID']]
     seen = set(); change = False
     for r in records:
         cid = str(r.get('ID','')).strip()
         if not cid or cid in seen: nid = str(uuid.uuid4()); r['ID'] = nid; change = True
         else: nid = cid
         seen.add(nid)
-        rows.append([r.get('Status',''), r.get('Bedrijf',''), r.get('Prijs',''), r.get('Contact',''), r.get('Email',''), r.get('Telefoon',''), r.get('Website',''), r.get('Notities',''), nid])
+        rows.append([
+            r.get('Status',''), r.get('Bedrijf',''), r.get('Prijs',''), r.get('Contact',''), 
+            r.get('Email',''), r.get('Telefoon',''), r.get('Website',''), 
+            r.get('Projectmap',''), r.get('Notities',''), nid
+        ])
     if change: sheet.clear(); sheet.update(rows); st.success("IDs fixed!"); st.cache_resource.clear(); st.rerun()
     else: st.toast("IDs OK")
 
@@ -329,13 +332,19 @@ with tab_pipeline:
                 cont = st.text_input("Contact")
                 mail = st.text_input("Email")
                 tel = st.text_input("Tel")
-                web = st.text_input("Link naar Projectmap (URL)") 
+                # NU TWEE VELDEN
+                web = st.text_input("Website URL")
+                proj = st.text_input("Link naar Projectmap (Drive)") 
                 pri = st.text_input("€")
                 not_ = st.text_area("Note")
                 if st.form_submit_button("Toevoegen"):
                     if not comp: st.error("Naam!")
                     else:
-                        ni = {'id': str(uuid.uuid4()), 'name': comp, 'contact': cont, 'email': mail, 'phone': tel, 'project_url': web, 'price': pri, 'notes': not_}
+                        ni = {
+                            'id': str(uuid.uuid4()), 'name': comp, 'contact': cont, 
+                            'email': mail, 'phone': tel, 'website': web, 
+                            'project_map': proj, 'price': pri, 'notes': not_
+                        }
                         st.session_state['leads_data']['col1'].insert(0, ni)
                         save_pipeline_data(st.session_state['leads_data'])
                         st.session_state['board_key'] += 1; st.rerun()
@@ -388,11 +397,18 @@ with tab_pipeline:
                     with c1: st.markdown(f"### {sel['name']}"); st.markdown(f"<h1 style='color:#fff;margin-top:-10px'>{sel['price']}</h1>", unsafe_allow_html=True)
                     with c2: 
                         st.write(f"👤 {sel.get('contact','-')}"); st.write(f"📧 {sel.get('email','-')}"); st.write(f"☎️ {sel.get('phone','-')}")
-                        if sel.get('project_url'): 
-                            url = sel['project_url']
+                        
+                        # WEERGAVE BEIDE LINKS
+                        if sel.get('website'):
+                            url = sel['website']
                             if not url.startswith('http'): url = 'https://' + url
-                            st.link_button("📂 Open Projectmap", url)
-                        else: st.caption("Geen projectmap link ingesteld.")
+                            st.markdown(f"🌐 [{sel['website']}]({url})")
+                        
+                        if sel.get('project_map'):
+                            purl = sel['project_map']
+                            if not purl.startswith('http'): purl = 'https://' + purl
+                            st.link_button("📂 Projectmap", purl)
+                        
                     st.markdown("---"); st.info(sel.get('notes') or "Geen notities.")
 
 # ================= TAB 3: TAKEN =================
