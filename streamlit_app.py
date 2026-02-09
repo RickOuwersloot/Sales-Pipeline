@@ -3,6 +3,7 @@ from streamlit_sortables import sort_items
 import uuid
 import json
 import time
+import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import date, datetime
@@ -17,7 +18,7 @@ st.set_page_config(
 
 # --- CONSTANTEN ---
 TASK_CATEGORIES = ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"]
-HOURLY_RATE = 30.0  # Jouw vaste tarief
+HOURLY_RATE = 30.0
 
 # --- 2. CSS STYLING ---
 st.markdown("""
@@ -54,11 +55,12 @@ st.markdown("""
     div[data-testid="metric-container"] {
         background-color: #25262b;
         border: 1px solid #333;
-        padding: 15px;
+        padding: 20px;
         border-radius: 10px;
         color: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-
+    
     /* KANBAN */
     div[class*="stSortable"] { display: flex; flex-direction: row; overflow-x: auto; gap: 15px; padding-bottom: 20px; }
     div[class*="stSortable"] > div {
@@ -203,7 +205,7 @@ def delete_completed_tasks():
             rows.append([r.get('Status'), r.get('Klant'), r.get('Taak'), r.get('Categorie'), r.get('Deadline'), r.get('Prioriteit'), r.get('Notities'), r.get('ID')])
     sheet.clear(); sheet.update(rows)
 
-# --- UREN FUNCTIES (NIEUW) ---
+# --- UREN FUNCTIES ---
 def load_hours():
     sheet = get_sheet("Uren")
     if not sheet: return []
@@ -214,7 +216,6 @@ def log_time(klant, datum, uren, omschrijving):
     sheet = get_sheet("Uren")
     if not sheet: return
     totaal = float(uren) * HOURLY_RATE
-    # Datum, Klant, Uren, Omschrijving, Tarief, Totaal, ID
     row = [str(datum), klant, float(uren), omschrijving, HOURLY_RATE, totaal, str(uuid.uuid4())]
     try: sheet.append_row(row)
     except: time.sleep(1); sheet.append_row(row)
@@ -229,6 +230,16 @@ def delete_hour_entry(entry_id):
             rows.append([r['Datum'], r['Klant'], r['Uren'], r['Omschrijving'], r['Tarief'], r['Totaal'], r['ID']])
     sheet.clear(); sheet.update(rows)
 
+# --- HELPER FUNCTIES VOOR DASHBOARD ---
+def parse_price(price_str):
+    """Probeert prijs strings als '€1.500' om te zetten naar float 1500.0"""
+    if not price_str: return 0.0
+    clean = str(price_str).replace('€', '').replace('.', '').replace(',', '.').strip()
+    # Verwijder eventuele tekst erachter (bv. ' incl.')
+    clean = clean.split(' ')[0]
+    try: return float(clean)
+    except: return 0.0
+
 # --- INITIALISATIE ---
 if 'leads_data' not in st.session_state:
     loaded = load_pipeline_data()
@@ -242,9 +253,69 @@ all_companies.sort()
 
 # --- APP LAYOUT ---
 st.title("🚀 RO Marketing CRM")
-tab_pipeline, tab_tasks, tab_hours = st.tabs(["📊 Pipeline", "✅ Taken", "⏱️ Uren & Tijd"])
+# AANGEPAST: Dashboard als EERSTE tab
+tab_dash, tab_pipeline, tab_tasks, tab_hours = st.tabs(["📈 Dashboard", "📊 Pipeline", "✅ Projecten & Taken", "⏱️ Uren & Tijd"])
 
-# ================= TAB 1: PIPELINE =================
+# ================= TAB 1: DASHBOARD (NIEUW!) =================
+with tab_dash:
+    st.header("📈 Financieel Dashboard")
+    
+    # DATA OPHALEN
+    all_hours = load_hours()
+    
+    # DATAFRAME MAKEN VOOR UREN
+    if all_hours:
+        df = pd.DataFrame(all_hours)
+        # Zorg dat getallen ook echt getallen zijn
+        df['Totaal'] = pd.to_numeric(df['Totaal'], errors='coerce').fillna(0)
+        df['Uren'] = pd.to_numeric(df['Uren'], errors='coerce').fillna(0)
+        df['Datum'] = pd.to_datetime(df['Datum'], errors='coerce')
+        
+        # Kolommen voor filteren
+        df['Maand'] = df['Datum'].dt.strftime('%Y-%m') # Bv. "2024-02"
+        df['Kwartaal'] = df['Datum'].dt.to_period('Q').astype(str) # Bv. "2024Q1"
+        
+        # 1. FILTERS
+        col_fil, col_empty = st.columns([1, 2])
+        with col_fil:
+            # Huidige maand als standaard
+            current_month = datetime.now().strftime('%Y-%m')
+            available_months = sorted(df['Maand'].unique().tolist(), reverse=True)
+            if current_month not in available_months: available_months.insert(0, current_month)
+            
+            selected_month = st.selectbox("📅 Selecteer Maand:", available_months)
+        
+        # 2. METRICS BEREKENEN
+        # A. Uren Omzet van geselecteerde maand
+        monthly_data = df[df['Maand'] == selected_month]
+        month_revenue = monthly_data['Totaal'].sum()
+        month_hours = monthly_data['Uren'].sum()
+        
+        # B. Pipeline Waarde (Geland)
+        pipeline_value = 0.0
+        for lead in st.session_state['leads_data']['col3']: # col3 = Geland
+            pipeline_value += parse_price(lead.get('price'))
+            
+        # 3. METRICS TONEN
+        m1, m2, m3 = st.columns(3)
+        m1.metric(f"Omzet Uren ({selected_month})", f"€ {month_revenue:,.2f}")
+        m2.metric(f"Gewerkte Uren ({selected_month})", f"{month_hours:.1f} uur")
+        m3.metric("Totaal Deals Geland 🎉", f"€ {pipeline_value:,.2f}")
+        
+        st.divider()
+        
+        # 4. GRAFIEK: OMZET PER KWARTAAL
+        st.subheader("📊 Omzet Uren per Kwartaal")
+        if not df.empty:
+            quarterly_data = df.groupby('Kwartaal')['Totaal'].sum()
+            st.bar_chart(quarterly_data, color="#2196F3")
+        else:
+            st.info("Nog geen data voor de grafiek.")
+            
+    else:
+        st.info("Nog geen uren geschreven. Ga naar het tabblad 'Uren & Tijd' om te beginnen!")
+
+# ================= TAB 2: PIPELINE =================
 with tab_pipeline:
     with st.sidebar:
         try: st.image("Logo RO Marketing.png", width=150)
@@ -309,7 +380,7 @@ with tab_pipeline:
                         if sel.get('website'): st.markdown(f"🌐 [{sel['website']}]({'https://'+sel['website'] if not sel['website'].startswith('http') else sel['website']})")
                     st.markdown("---"); st.info(sel.get('notes') or "Geen notities.")
 
-# ================= TAB 2: TAKEN =================
+# ================= TAB 3: TAKEN =================
 with tab_tasks:
     st.header("✅ Projectmanagement")
     
@@ -389,12 +460,11 @@ with tab_tasks:
     if st.button("🧹 Voltooide taken verwijderen"):
         delete_completed_tasks(); st.success("Opgeruimd!"); st.rerun()
 
-# ================= TAB 3: UREN (NIEUW!) =================
+# ================= TAB 4: UREN =================
 with tab_hours:
     st.header("⏱️ Urenregistratie")
     st.markdown(f"**Vast Tarief:** €{HOURLY_RATE} / uur")
     
-    # 1. UREN SCHRIJVEN
     with st.container(border=True):
         st.subheader("✍️ Tijd Schrijven")
         with st.form("log_time"):
@@ -413,49 +483,31 @@ with tab_hours:
                     log_time(h_klant, h_datum, h_uren, h_desc)
                     st.success(f"{h_uren} uur geschreven op {h_klant}!")
                     st.rerun()
-                else:
-                    st.error("Vul een aantal uren in!")
+                else: st.error("Vul een aantal uren in!")
 
-    # 2. OVERZICHT & TOTALEN
     st.divider()
-    
-    # Filter voor overzicht
     h_filter = st.selectbox("🔍 Filter overzicht op klant:", ["Alle Klanten"] + all_companies)
-    
     all_hours = load_hours()
-    
-    # Filteren
-    if h_filter != "Alle Klanten":
-        filtered_hours = [h for h in all_hours if h.get('Klant') == h_filter]
-    else:
-        filtered_hours = all_hours
+    filtered_hours = [h for h in all_hours if h.get('Klant') == h_filter] if h_filter != "Alle Klanten" else all_hours
 
-    # Totalen berekenen
     total_hours = sum([float(h.get('Uren', 0)) for h in filtered_hours])
     total_money = sum([float(h.get('Totaal', 0)) for h in filtered_hours])
 
-    # METRICS TONEN
     m1, m2 = st.columns(2)
     m1.metric("Totaal Uren", f"{total_hours:.2f} uur")
     m2.metric("Totale Waarde", f"€ {total_money:,.2f}")
 
-    # TABEL TONEN
     if filtered_hours:
-        # We maken een mooie lijst om te tonen
         st.markdown("### 📜 Logboek")
-        for entry in reversed(filtered_hours): # Nieuwste bovenaan
+        for entry in reversed(filtered_hours):
             with st.container(border=True):
                 col_a, col_b, col_c, col_d = st.columns([1.5, 4, 1.5, 1])
                 with col_a:
                     st.caption(entry['Datum'])
                     st.write(f"**{entry['Klant']}**")
-                with col_b:
-                    st.write(entry['Omschrijving'])
-                with col_c:
-                    st.markdown(f"**{entry['Uren']}u** (€{entry['Totaal']})")
+                with col_b: st.write(entry['Omschrijving'])
+                with col_c: st.markdown(f"**{entry['Uren']}u** (€{entry['Totaal']})")
                 with col_d:
                     if st.button("🗑️", key=f"del_h_{entry['ID']}"):
-                        delete_hour_entry(entry['ID'])
-                        st.rerun()
-    else:
-        st.info("Nog geen uren geschreven voor deze selectie.")
+                        delete_hour_entry(entry['ID']); st.rerun()
+    else: st.info("Nog geen uren geschreven voor deze selectie.")
