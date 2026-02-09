@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="auto" 
 )
 
-# --- 2. CSS STYLING (MET ALLE FIXES 🛠️) ---
+# --- 2. CSS STYLING ---
 st.markdown("""
     <style>
     /* A. FONTS IMPORTEREN */
@@ -124,7 +124,7 @@ def get_sheet(sheet_name="Sheet1"):
 
 # --- FUNCTIES VOOR PIPELINE ---
 def load_pipeline_data():
-    sheet = get_sheet("Sheet1") # Oude data zit hier
+    sheet = get_sheet("Sheet1")
     if not sheet: return None
     records = sheet.get_all_records()
     data_structure = {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
@@ -179,27 +179,30 @@ def fix_missing_ids():
 def load_tasks():
     sheet = get_sheet("Taken")
     if not sheet: return []
-    records = sheet.get_all_records()
-    return records
+    # FIX voor de KeyError: we checken of de records wel kloppen
+    try:
+        records = sheet.get_all_records()
+        # Kleine schoonmaak: filter lege rijen eruit
+        valid_records = [r for r in records if r.get('ID')]
+        return valid_records
+    except Exception:
+        return []
 
-def add_task(taak, categorie, deadline, subtaken):
+def add_task(klant, taak, categorie, deadline, subtaken):
     sheet = get_sheet("Taken")
     if not sheet: return
     new_id = str(uuid.uuid4())
-    # Status FALSE betekent: nog niet afgevinkt
-    row = ["FALSE", taak, categorie, str(deadline), subtaken, new_id]
+    # Status, Klant, Taak, Cat, Deadline, Sub, ID
+    row = ["FALSE", klant, taak, categorie, str(deadline), subtaken, new_id]
     sheet.append_row(row)
 
 def toggle_task_status(task_id, current_status):
     sheet = get_sheet("Taken")
     if not sheet: return
-    # We moeten de cel vinden. Dit is even een trick om rows te vinden.
-    # Voor betere performance zou je cell objects gebruiken, maar dit is simpel:
     records = sheet.get_all_records()
-    # Rij index vinden (header is rij 1, records beginnen bij rij 2 in sheet, index 0 in list)
     for i, row in enumerate(records):
         if str(row.get('ID')) == task_id:
-            # Update de Status kolom (Kolom A = 1)
+            # Kolom A is index 1.
             new_val = "TRUE" if current_status == "FALSE" else "FALSE"
             sheet.update_cell(i + 2, 1, new_val)
             return
@@ -208,13 +211,12 @@ def delete_completed_tasks():
     sheet = get_sheet("Taken")
     if not sheet: return
     records = sheet.get_all_records()
-    # We bouwen de lijst opnieuw op, zonder de 'TRUE' taken
-    rows_to_keep = [['Status', 'Taak', 'Categorie', 'Deadline', 'Subtaken', 'ID']]
+    rows_to_keep = [['Status', 'Klant', 'Taak', 'Categorie', 'Deadline', 'Subtaken', 'ID']]
     for row in records:
         if str(row.get('Status')).upper() != "TRUE":
             rows_to_keep.append([
-                row.get('Status'), row.get('Taak'), row.get('Categorie'),
-                row.get('Deadline'), row.get('Subtaken'), row.get('ID')
+                row.get('Status'), row.get('Klant'), row.get('Taak'), 
+                row.get('Categorie'), row.get('Deadline'), row.get('Subtaken'), row.get('ID')
             ])
     sheet.clear()
     sheet.update(rows_to_keep)
@@ -225,23 +227,28 @@ if 'leads_data' not in st.session_state:
     st.session_state['leads_data'] = loaded if loaded else {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
 if 'board_key' not in st.session_state: st.session_state['board_key'] = 0
 
+# Lijst met alle klanten verzamelen voor de dropdowns
+all_companies = []
+for col_list in st.session_state['leads_data'].values():
+    for l in col_list:
+        all_companies.append(l['name'])
+all_companies.sort()
+
 # --- 5. APP LAYOUT MET TABS ---
 st.title("🚀 RO Marketing CRM")
 
-# Hier splitsen we de app in tweeën!
-tab_pipeline, tab_tasks = st.tabs(["📊 Pipeline", "✅ Takenbeheer"])
+tab_pipeline, tab_tasks = st.tabs(["📊 Pipeline", "✅ Projecten & Taken"])
 
 # ==========================================
-# TAB 1: DE PIPELINE (OUDE CODE)
+# TAB 1: DE PIPELINE
 # ==========================================
 with tab_pipeline:
-    # --- SIDEBAR (ALLEEN VOOR PIPELINE) ---
+    # --- SIDEBAR ---
     with st.sidebar:
         try: st.image("Logo RO Marketing.png", width=150)
         except: st.warning("Logo uploaden!")
         
-        st.markdown("### ➕ Pipeline Acties")
-        with st.expander("Nieuwe Deal", expanded=False):
+        with st.expander("➕ Nieuwe Deal", expanded=False):
             with st.form("add_lead_form", clear_on_submit=True):
                 company = st.text_input("Bedrijf *")
                 contact = st.text_input("Contact")
@@ -266,9 +273,11 @@ with tab_pipeline:
                 st.session_state['board_key'] += 1
                 st.rerun()
         
-        c1, c2 = st.columns(2)
-        if c1.button("🔄"): st.cache_resource.clear(); del st.session_state['leads_data']; st.rerun()
-        if c2.button("🛠️ IDs"): fix_missing_ids()
+        col_ref, col_fix = st.columns(2)
+        with col_ref:
+            if st.button("🔄 Reload"): st.cache_resource.clear(); del st.session_state['leads_data']; st.rerun()
+        with col_fix:
+            if st.button("🛠️ IDs"): fix_missing_ids()
 
     # --- HET BORD ---
     columns_config = [('col1', 'Te benaderen'), ('col2', 'Opgevolgd'), ('col3', 'Geland 🎉'), ('col4', 'Geen interesse'), ('trash', 'Prullenbak 🗑️')]
@@ -326,63 +335,87 @@ with tab_pipeline:
                     st.info(sel_deal['notes'] if sel_deal['notes'] else "Geen notities.")
 
 # ==========================================
-# TAB 2: TAKENBEHEER (NIEUW! ✨)
+# TAB 2: TAKENBEHEER PER KLANT
 # ==========================================
 with tab_tasks:
-    st.header("✅ Mijn Takenlijst")
+    st.header("✅ Projectmanagement")
     
-    # 1. Nieuwe Taak Toevoegen
-    with st.expander("➕ Nieuwe Taak Aanmaken", expanded=False):
+    # 1. Filteren op Klant
+    c_filter, c_new = st.columns([1, 2])
+    with c_filter:
+        # We voegen 'Alle klanten' toe als optie
+        klant_filter = st.selectbox("📂 Selecteer Project / Klant:", ["Alle Projecten"] + all_companies)
+    
+    # 2. Nieuwe Taak Toevoegen
+    with st.expander(f"➕ Taak toevoegen voor {klant_filter if klant_filter != 'Alle Projecten' else 'een klant'}", expanded=False):
         with st.form("new_task_form", clear_on_submit=True):
             col_a, col_b = st.columns(2)
             with col_a:
+                # Als er al een klant is geselecteerd in het filter, vullen we die in. Anders dropdown.
+                if klant_filter != "Alle Projecten":
+                    st.write(f"**Klant:** {klant_filter}")
+                    sel_klant = klant_filter
+                else:
+                    sel_klant = st.selectbox("Klant", all_companies)
+                
                 t_naam = st.text_input("Wat moet er gebeuren?")
-                t_cat = st.selectbox("Categorie", ["Opvolging", "Administratie", "Meeting", "Koud Bellen", "Overig"])
+                t_cat = st.selectbox("Categorie", ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"])
             with col_b:
                 t_date = st.date_input("Deadline", date.today())
                 t_sub = st.text_area("Details / Subtaken")
             
-            if st.form_submit_button("Taak Opslaan"):
-                add_task(t_naam, t_cat, t_date, t_sub)
-                st.success("Taak toegevoegd!")
+            if st.form_submit_button("Project Taak Opslaan"):
+                add_task(sel_klant, t_naam, t_cat, t_date, t_sub)
+                st.success(f"Taak voor {sel_klant} toegevoegd!")
                 st.rerun()
 
-    # 2. Taken Weergeven
-    tasks = load_tasks()
+    # 3. Taken Weergeven
+    all_tasks = load_tasks()
     
-    if not tasks:
-        st.info("Je hebt nog geen taken. Geniet van je rust! 🏝️")
+    # Filter de taken op basis van de selectie
+    if klant_filter != "Alle Projecten":
+        display_tasks = [t for t in all_tasks if t.get('Klant') == klant_filter]
     else:
-        # Sorteren: Eerst de niet-afgevinkte, dan op datum
-        tasks.sort(key=lambda x: (x.get('Status') == 'TRUE', x.get('Deadline')))
+        display_tasks = all_tasks
+
+    if not display_tasks:
+        st.info(f"Geen taken gevonden voor {klant_filter}.")
+    else:
+        # Sorteren: Eerst open taken, dan op deadline
+        display_tasks.sort(key=lambda x: (x.get('Status') == 'TRUE', x.get('Deadline')))
         
-        for task in tasks:
-            is_done = str(task.get('Status')).upper() == 'TRUE'
+        st.write(f"**{len(display_tasks)} taken voor {klant_filter}**")
+        
+        for task in display_tasks:
+            # Veiligheid: check of ID bestaat
+            if not task.get('ID'): continue
             
-            # Styling van het taak-blokje
-            border_color = "#4CAF50" if is_done else "#2196F3"
-            opacity = "0.6" if is_done else "1.0"
+            is_done = str(task.get('Status')).upper() == 'TRUE'
+            opacity = "0.5" if is_done else "1.0"
+            strike = "text-decoration: line-through;" if is_done else ""
             
             with st.container(border=True):
-                c_check, c_info, c_date = st.columns([1, 6, 2])
+                c_check, c_info, c_meta = st.columns([0.5, 6, 2])
                 
                 with c_check:
-                    # Checkbox logic
                     check_val = st.checkbox("", value=is_done, key=f"chk_{task['ID']}")
                     if check_val != is_done:
                         toggle_task_status(task['ID'], str(task.get('Status')).upper())
                         st.rerun()
                 
                 with c_info:
-                    st.markdown(f"<div style='opacity: {opacity}'><strong>{task['Taak']}</strong> <span style='background:#333; padding:2px 6px; border-radius:4px; font-size:0.8em; margin-left:10px;'>{task['Categorie']}</span></div>", unsafe_allow_html=True)
+                    # We tonen de klantnaam erbij als we op "Alle projecten" staan
+                    klant_label = f"<span style='color: #2196F3; font-weight:bold;'>{task.get('Klant')}</span> | " if klant_filter == "Alle Projecten" else ""
+                    
+                    st.markdown(f"<div style='opacity: {opacity}; {strike}'>{klant_label}<strong>{task['Taak']}</strong></div>", unsafe_allow_html=True)
                     if task.get('Subtaken'):
                         st.caption(f"📝 {task['Subtaken']}")
                 
-                with c_date:
-                    st.markdown(f"<div style='opacity: {opacity}; text-align:right;'>📅 {task['Deadline']}</div>", unsafe_allow_html=True)
+                with c_meta:
+                    st.markdown(f"<div style='opacity: {opacity}; font-size: 0.9em; text-align:right;'>📅 {task['Deadline']}<br><span style='background:#333; padding:2px 6px; border-radius:4px; font-size:0.8em;'>{task['Categorie']}</span></div>", unsafe_allow_html=True)
 
         st.divider()
-        if st.button("🧹 Afgevinkte taken verwijderen"):
+        if st.button("🧹 Voltooide taken verwijderen uit lijst"):
             delete_completed_tasks()
-            st.success("Opgeruimd staat netjes!")
+            st.success("Opgeruimd!")
             st.rerun()
