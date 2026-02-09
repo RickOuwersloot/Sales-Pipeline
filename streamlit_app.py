@@ -303,7 +303,7 @@ all_companies.sort()
 st.title("🚀 RO Marketing CRM")
 tab_dash, tab_pipeline, tab_tasks, tab_hours = st.tabs(["📈 Dashboard", "📊 Pipeline", "✅ Projecten & Taken", "⏱️ Uren & Tijd"])
 
-# ================= TAB 1: DASHBOARD (MET CONTRACT LIJST) =================
+# ================= TAB 1: DASHBOARD (SCROLLBARE LIJST 🔧) =================
 with tab_dash:
     st.header("📈 Financieel Dashboard")
     all_hours = load_hours()
@@ -331,28 +331,28 @@ with tab_dash:
         
         st.divider(); 
         
-        # SPLITSING: GRAFIEK LINKS, LIJST RECHTS
         c_chart, c_list = st.columns([2, 1])
-        
         with c_chart:
             st.subheader("📈 Omzetverloop per Maand")
             if not df.empty: st.line_chart(df.groupby('Maand')['Totaal'].sum(), color="#2196F3")
             
         with c_list:
             st.subheader("🔧 Contracten")
-            # Loop door alle leads om contracten te vinden
+            # Loop door alle leads
             maintenance_clients = []
-            # We kijken in alle kolommen behalve prullenbak
             for col in ['col1', 'col2', 'col3', 'col4']:
                 for lead in st.session_state['leads_data'][col]:
                     if lead.get('maintenance'):
                         maintenance_clients.append(lead['name'])
             
             if maintenance_clients:
-                for client in maintenance_clients:
-                    st.success(f"**{client}**")
+                # SCROLLBARE CONTAINER VOOR ALS HET ER VEEL ZIJN
+                with st.container(height=300, border=True):
+                    for client in maintenance_clients:
+                        # Klein en grijs, zoals gevraagd
+                        st.markdown(f"<div style='font-size: 0.9em; color: #aaa; padding: 4px 0; border-bottom: 1px solid #333;'>🔧 {client}</div>", unsafe_allow_html=True)
             else:
-                st.caption("Nog geen onderhoudscontracten.")
+                st.caption("Geen contracten.")
 
     else:
         st.info("Nog geen uren geschreven.")
