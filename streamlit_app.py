@@ -232,10 +232,8 @@ def delete_hour_entry(entry_id):
 
 # --- HELPER FUNCTIES VOOR DASHBOARD ---
 def parse_price(price_str):
-    """Probeert prijs strings als '€1.500' om te zetten naar float 1500.0"""
     if not price_str: return 0.0
     clean = str(price_str).replace('€', '').replace('.', '').replace(',', '.').strip()
-    # Verwijder eventuele tekst erachter (bv. ' incl.')
     clean = clean.split(' ')[0]
     try: return float(clean)
     except: return 0.0
@@ -253,50 +251,40 @@ all_companies.sort()
 
 # --- APP LAYOUT ---
 st.title("🚀 RO Marketing CRM")
-# AANGEPAST: Dashboard als EERSTE tab
 tab_dash, tab_pipeline, tab_tasks, tab_hours = st.tabs(["📈 Dashboard", "📊 Pipeline", "✅ Projecten & Taken", "⏱️ Uren & Tijd"])
 
-# ================= TAB 1: DASHBOARD (NIEUW!) =================
+# ================= TAB 1: DASHBOARD (LIJNGRAFIEK AANPASSING) =================
 with tab_dash:
     st.header("📈 Financieel Dashboard")
     
-    # DATA OPHALEN
     all_hours = load_hours()
     
-    # DATAFRAME MAKEN VOOR UREN
     if all_hours:
         df = pd.DataFrame(all_hours)
-        # Zorg dat getallen ook echt getallen zijn
         df['Totaal'] = pd.to_numeric(df['Totaal'], errors='coerce').fillna(0)
         df['Uren'] = pd.to_numeric(df['Uren'], errors='coerce').fillna(0)
         df['Datum'] = pd.to_datetime(df['Datum'], errors='coerce')
         
-        # Kolommen voor filteren
-        df['Maand'] = df['Datum'].dt.strftime('%Y-%m') # Bv. "2024-02"
-        df['Kwartaal'] = df['Datum'].dt.to_period('Q').astype(str) # Bv. "2024Q1"
+        df['Maand'] = df['Datum'].dt.strftime('%Y-%m')
         
         # 1. FILTERS
         col_fil, col_empty = st.columns([1, 2])
         with col_fil:
-            # Huidige maand als standaard
             current_month = datetime.now().strftime('%Y-%m')
             available_months = sorted(df['Maand'].unique().tolist(), reverse=True)
             if current_month not in available_months: available_months.insert(0, current_month)
             
             selected_month = st.selectbox("📅 Selecteer Maand:", available_months)
         
-        # 2. METRICS BEREKENEN
-        # A. Uren Omzet van geselecteerde maand
+        # 2. METRICS
         monthly_data = df[df['Maand'] == selected_month]
         month_revenue = monthly_data['Totaal'].sum()
         month_hours = monthly_data['Uren'].sum()
         
-        # B. Pipeline Waarde (Geland)
         pipeline_value = 0.0
         for lead in st.session_state['leads_data']['col3']: # col3 = Geland
             pipeline_value += parse_price(lead.get('price'))
             
-        # 3. METRICS TONEN
         m1, m2, m3 = st.columns(3)
         m1.metric(f"Omzet Uren ({selected_month})", f"€ {month_revenue:,.2f}")
         m2.metric(f"Gewerkte Uren ({selected_month})", f"{month_hours:.1f} uur")
@@ -304,11 +292,15 @@ with tab_dash:
         
         st.divider()
         
-        # 4. GRAFIEK: OMZET PER KWARTAAL
-        st.subheader("📊 Omzet Uren per Kwartaal")
+        # 4. GRAFIEK: OMZET PER MAAND (LIJN)
+        st.subheader("📈 Omzetverloop per Maand")
         if not df.empty:
-            quarterly_data = df.groupby('Kwartaal')['Totaal'].sum()
-            st.bar_chart(quarterly_data, color="#2196F3")
+            # We maken een nieuwe dataframe voor de grafiek
+            # We groeperen op 'Maand' en sommeren 'Totaal'
+            chart_data = df.groupby('Maand')['Totaal'].sum()
+            
+            # Standaard line_chart
+            st.line_chart(chart_data, color="#2196F3")
         else:
             st.info("Nog geen data voor de grafiek.")
             
