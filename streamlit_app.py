@@ -125,7 +125,7 @@ def get_sheet(sheet_name="Sheet1"):
         except: return None
     return None
 
-# --- PIPELINE FUNCTIES (MET ONDERHOUD CHECK) ---
+# --- PIPELINE FUNCTIES ---
 def load_pipeline_data():
     sheet = get_sheet("Sheet1")
     if not sheet: return None
@@ -137,7 +137,7 @@ def load_pipeline_data():
     for row in records:
         if row.get('Bedrijf'):
             raw_id = str(row.get('ID', '')).strip()
-            # Check of onderhoud 'TRUE' is in sheet
+            # Check onderhoud kolom
             has_maint = str(row.get('Onderhoud', '')).upper() == 'TRUE'
             
             lead = {
@@ -150,7 +150,7 @@ def load_pipeline_data():
                 'website': row.get('Website'),        
                 'project_map': row.get('Projectmap'), 
                 'notes': row.get('Notities'),
-                'maintenance': has_maint # Nieuw veld
+                'maintenance': has_maint
             }
             col_key = status_map.get(row.get('Status', 'Te benaderen'), 'col1')
             data_structure[col_key].append(lead)
@@ -159,15 +159,12 @@ def load_pipeline_data():
 def save_pipeline_data(leads_data):
     sheet = get_sheet("Sheet1")
     if not sheet: return
-    # HEADER UPDATE: Onderhoud toegevoegd
     rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'Onderhoud', 'ID']]
     col_map = {'col1': 'Te benaderen', 'col2': 'Opgevolgd', 'col3': 'Geland', 'col4': 'Geen interesse', 'trash': 'Prullenbak'}
     for col_key, items in leads_data.items():
         st_txt = col_map.get(col_key, 'Te benaderen')
         for i in items:
-            # Onderhoud boolean naar tekst 'TRUE' of 'FALSE'
             m_val = "TRUE" if i.get('maintenance') else "FALSE"
-            
             rows.append([
                 st_txt, i.get('name',''), i.get('price',''), i.get('contact',''), 
                 i.get('email',''), i.get('phone',''), i.get('website',''), 
@@ -193,7 +190,6 @@ def fix_missing_ids():
     if not sheet: return
     try: records = sheet.get_all_records()
     except: return
-    # HEADER UPDATE
     rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'Onderhoud', 'ID']]
     seen = set(); change = False
     for r in records:
@@ -307,7 +303,7 @@ all_companies.sort()
 st.title("🚀 RO Marketing CRM")
 tab_dash, tab_pipeline, tab_tasks, tab_hours = st.tabs(["📈 Dashboard", "📊 Pipeline", "✅ Projecten & Taken", "⏱️ Uren & Tijd"])
 
-# ================= TAB 1: DASHBOARD =================
+# ================= TAB 1: DASHBOARD (MET CONTRACT LIJST) =================
 with tab_dash:
     st.header("📈 Financieel Dashboard")
     all_hours = load_hours()
@@ -333,8 +329,31 @@ with tab_dash:
         m2.metric(f"Gewerkte Uren ({sel_month})", f"{m_data['Uren'].sum():.1f} uur")
         m3.metric("Totaal Deals Geland 🎉", f"€ {pipe_val:,.2f}")
         
-        st.divider(); st.subheader("📈 Omzetverloop per Maand")
-        if not df.empty: st.line_chart(df.groupby('Maand')['Totaal'].sum(), color="#2196F3")
+        st.divider(); 
+        
+        # SPLITSING: GRAFIEK LINKS, LIJST RECHTS
+        c_chart, c_list = st.columns([2, 1])
+        
+        with c_chart:
+            st.subheader("📈 Omzetverloop per Maand")
+            if not df.empty: st.line_chart(df.groupby('Maand')['Totaal'].sum(), color="#2196F3")
+            
+        with c_list:
+            st.subheader("🔧 Contracten")
+            # Loop door alle leads om contracten te vinden
+            maintenance_clients = []
+            # We kijken in alle kolommen behalve prullenbak
+            for col in ['col1', 'col2', 'col3', 'col4']:
+                for lead in st.session_state['leads_data'][col]:
+                    if lead.get('maintenance'):
+                        maintenance_clients.append(lead['name'])
+            
+            if maintenance_clients:
+                for client in maintenance_clients:
+                    st.success(f"**{client}**")
+            else:
+                st.caption("Nog geen onderhoudscontracten.")
+
     else:
         st.info("Nog geen uren geschreven.")
         pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col3']])
@@ -353,10 +372,7 @@ with tab_pipeline:
                 tel = st.text_input("Tel")
                 web = st.text_input("Website URL")
                 proj = st.text_input("Link naar Projectmap (URL)") 
-                
-                # NIEUWE OPTIE: ONDERHOUD
                 m_contr = st.checkbox("🔧 Heeft Onderhoudscontract?")
-                
                 pri = st.text_input("€")
                 not_ = st.text_area("Note")
                 if st.form_submit_button("Toevoegen"):
@@ -366,7 +382,7 @@ with tab_pipeline:
                             'id': str(uuid.uuid4()), 'name': comp, 'contact': cont, 
                             'email': mail, 'phone': tel, 'website': web, 
                             'project_map': proj, 'price': pri, 'notes': not_,
-                            'maintenance': m_contr # Opslaan
+                            'maintenance': m_contr
                         }
                         st.session_state['leads_data']['col1'].insert(0, ni)
                         save_pipeline_data(st.session_state['leads_data'])
@@ -380,42 +396,29 @@ with tab_pipeline:
     cols = [('col1', 'Te benaderen'), ('col2', 'Opgevolgd'), ('col3', 'Geland 🎉'), ('col4', 'Geen interesse'), ('trash', 'Prullenbak 🗑️')]
     k_data = []
     all_leads = []
-    
-    # KANBAN KAARTJES GENEREREN
     for k, name in cols:
         items = []
         for l in st.session_state['leads_data'][k]:
-            # HIER KOMT HET SLEUTELTJE 🔧
             name_label = l['name']
-            if l.get('maintenance'):
-                name_label += " 🔧"
-                
+            if l.get('maintenance'): name_label += " 🔧"
             price_part = f" | {l['price']}" if l['price'] else ""
             items.append(f"{name_label}{price_part}")
-            
         all_leads.extend(st.session_state['leads_data'][k])
         k_data.append({'header': name, 'items': items})
 
     s_data = sort_items(k_data, multi_containers=True, key=f"board_{st.session_state['board_key']}")
 
-    # LOGICA VOOR VERSLEPEN
     if len(s_data) == 5:
         new_st = {}
-        # We moeten even slim mappen omdat de kaartjes nu een 🔧 kunnen hebben
-        # We maken een lookup table op basis van de gegenereerde kaart-tekst
         lookup = {}
         for l in all_leads:
             name_label = l['name']
-            if l.get('maintenance'):
-                name_label += " 🔧"
+            if l.get('maintenance'): name_label += " 🔧"
             price_part = f" | {l['price']}" if l['price'] else ""
-            card_txt = f"{name_label}{price_part}"
-            lookup[card_txt] = l
+            lookup[f"{name_label}{price_part}"] = l
 
         for i, cd in enumerate(s_data):
             new_st[cols[i][0]] = [lookup[x] for x in cd['items'] if x in lookup]
-            
-        # Checken op wijzigingen
         curr_ids = [[l['id'] for l in c] for c in st.session_state['leads_data'].values()]
         new_ids = [[l['id'] for l in c] for c in new_st.values()]
         if curr_ids != new_ids:
@@ -436,7 +439,6 @@ with tab_pipeline:
             else:
                 sel = None; st.info("Geen deals gevonden.")
 
-        # --- AANGEPASTE DETAILS SECTIE ---
         if sel:
             if 'editing_id' not in st.session_state or st.session_state['editing_id'] != sel['id']:
                 st.session_state['edit_mode'] = False
@@ -458,60 +460,39 @@ with tab_pipeline:
                                 u_price = st.text_input("Prijs (bv. €1500)", sel['price'])
                                 u_web = st.text_input("Website URL", sel.get('website', ''))
                                 u_proj = st.text_input("Projectmap URL", sel.get('project_map', ''))
-                                
-                                # EDIT ONDERHOUD
                                 u_maint = st.checkbox("🔧 Onderhoudscontract actief?", value=sel.get('maintenance', False))
-                            
                             u_notes = st.text_area("Notities", sel.get('notes', ''))
-                            
                             if st.form_submit_button("💾 Opslaan & Sluiten", use_container_width=True):
                                 updated_lead = sel.copy()
-                                updated_lead.update({
-                                    'name': u_name, 'contact': u_contact, 'email': u_email,
-                                    'phone': u_phone, 'price': u_price, 'website': u_web,
-                                    'project_map': u_proj, 'notes': u_notes,
-                                    'maintenance': u_maint
-                                })
+                                updated_lead.update({'name': u_name, 'contact': u_contact, 'email': u_email, 'phone': u_phone, 'price': u_price, 'website': u_web, 'project_map': u_proj, 'notes': u_notes, 'maintenance': u_maint})
                                 update_single_lead(updated_lead)
-                                st.session_state['edit_mode'] = False 
-                                st.rerun()
-
+                                st.session_state['edit_mode'] = False; st.rerun()
                     else:
                         r1, r2 = st.columns([4, 1])
                         with r1: 
-                            # NAAM MET ICOON ALS ER CONTRACT IS
-                            display_name = sel['name']
-                            if sel.get('maintenance'): display_name += " 🔧"
-                            st.markdown(f"### {display_name}")
-                            
+                            dn = sel['name']
+                            if sel.get('maintenance'): dn += " 🔧"
+                            st.markdown(f"### {dn}")
                         with r2: 
                             if st.button("✏️ Bewerken", key="btn_edit_mode"):
-                                st.session_state['edit_mode'] = True
-                                st.rerun()
-
+                                st.session_state['edit_mode'] = True; st.rerun()
                         st.markdown(f"<h1 style='color:#fff;margin-top:-10px;font-size:2em'>{sel['price']}</h1>", unsafe_allow_html=True)
-                        
                         rc1, rc2 = st.columns(2)
                         with rc1:
                             st.write(f"👤 **Contact:** {sel.get('contact','-')}")
                             st.write(f"📧 **Email:** {sel.get('email','-')}")
                             st.write(f"☎️ **Tel:** {sel.get('phone','-')}")
-                        
                         with rc2:
                             if sel.get('website'):
                                 url = sel['website']; 
                                 if not url.startswith('http'): url = 'https://' + url
                                 st.markdown(f"🌐 [{sel['website']}]({url})")
-                            
                             if sel.get('project_map'):
                                 purl = sel['project_map']; 
                                 if not purl.startswith('http'): purl = 'https://' + purl
                                 st.link_button("📂 Open Projectmap", purl)
-                            else:
-                                st.caption("Geen projectmap gekoppeld")
-
-                        st.markdown("---")
-                        st.info(sel.get('notes') or "Geen notities.")
+                            else: st.caption("Geen projectmap gekoppeld")
+                        st.markdown("---"); st.info(sel.get('notes') or "Geen notities.")
 
 # ================= TAB 3: TAKEN =================
 with tab_tasks:
