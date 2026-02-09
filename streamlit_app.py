@@ -125,24 +125,18 @@ def get_sheet(sheet_name="Sheet1"):
         except: return None
     return None
 
-# --- NIEUW: ROBUUSTE FETCH FUNCTIE ---
-# Dit zorgt ervoor dat de app niet crasht als Google even hapert
+# --- ROBUUSTE DATA FUNCTIE ---
 def robust_get_all_records(sheet):
-    """Probeert 3 keer data op te halen voordat hij opgeeft."""
     if not sheet: return []
     for attempt in range(3):
-        try:
-            return sheet.get_all_records()
-        except Exception:
-            time.sleep(1) # Wacht 1 seconde en probeer opnieuw
+        try: return sheet.get_all_records()
+        except Exception: time.sleep(1)
     return []
 
 # --- PIPELINE FUNCTIES ---
 def load_pipeline_data():
     sheet = get_sheet("Sheet1")
     if not sheet: return None
-    
-    # Gebruik de robuuste functie
     records = robust_get_all_records(sheet)
     if not records: return None
 
@@ -222,7 +216,6 @@ def fix_missing_ids():
 def load_tasks():
     sheet = get_sheet("Taken")
     if not sheet: return []
-    # Gebruik de robuuste functie
     records = robust_get_all_records(sheet)
     return [r for r in records if r.get('ID')]
 
@@ -232,6 +225,23 @@ def add_task(klant, taak, categorie, deadline, prioriteit, notities):
     row = ["FALSE", klant, taak, categorie, str(deadline), prioriteit, notities, str(uuid.uuid4())]
     try: sheet.append_row(row)
     except: time.sleep(1); sheet.append_row(row)
+
+# NIEUW: FUNCTIE OM MEERDERE TAKEN TEGELIJK TOE TE VOEGEN
+def add_batch_tasks(tasks_list):
+    """Voegt een lijst met taken in één keer toe."""
+    sheet = get_sheet("Taken")
+    if not sheet: st.error("Tabblad Taken mist"); return
+    
+    rows_to_add = []
+    for t in tasks_list:
+        # FALSE, Klant, Taak, Categorie, Deadline, Prioriteit, Notities, ID
+        rows_to_add.append([
+            "FALSE", t['klant'], t['taak'], t['cat'], 
+            str(t['deadline']), t['prio'], "", str(uuid.uuid4())
+        ])
+    
+    try: sheet.append_rows(rows_to_add)
+    except: time.sleep(1); sheet.append_rows(rows_to_add)
 
 def update_task_data(task_id, new_data):
     sheet = get_sheet("Taken")
@@ -274,7 +284,6 @@ def delete_completed_tasks():
 def load_hours():
     sheet = get_sheet("Uren")
     if not sheet: return []
-    # Gebruik de robuuste functie
     records = robust_get_all_records(sheet)
     return [r for r in records if r.get('ID')]
 
@@ -353,7 +362,6 @@ with tab_dash:
             
         with c_list:
             st.subheader("🔧 Contracten")
-            # Loop door alle leads
             maintenance_clients = []
             for col in ['col1', 'col2', 'col3', 'col4']:
                 for lead in st.session_state['leads_data'][col]:
@@ -361,13 +369,10 @@ with tab_dash:
                         maintenance_clients.append(lead['name'])
             
             if maintenance_clients:
-                # Scrollbare container, klein en grijs
                 with st.container(height=300, border=True):
                     for client in maintenance_clients:
                         st.markdown(f"<div style='font-size: 0.9em; color: #aaa; padding: 4px 0; border-bottom: 1px solid #333;'>🔧 {client}</div>", unsafe_allow_html=True)
-            else:
-                st.caption("Geen contracten.")
-
+            else: st.caption("Geen contracten.")
     else:
         st.info("Nog geen uren geschreven.")
         pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col3']])
@@ -510,11 +515,56 @@ with tab_pipeline:
 # ================= TAB 3: TAKEN =================
 with tab_tasks:
     st.header("✅ Projectmanagement")
+    
+    # 1. STANDAARD TAKEN (NIEUW)
+    with st.expander("⚡ Snel Taken Toevoegen (Checklists)", expanded=False):
+        st.caption("Kies een standaardlijst om in één keer toe te voegen aan een klant.")
+        sl_c1, sl_c2 = st.columns(2)
+        with sl_c1:
+            sl_klant = st.selectbox("Voor welke klant?", all_companies, key="checklist_client_select")
+        with sl_c2:
+            st.write("") # Spacer
+            st.write("") # Spacer
+            # KNOPPEN
+            c_btn1, c_btn2 = st.columns(2)
+            if c_btn1.button("🌐 Nieuwe Website"):
+                tasks = [
+                    {"klant": sl_klant, "taak": "Hosting & Domeinnaam vastleggen", "cat": "Website Bouw", "deadline": date.today(), "prio": "🔥 Hoog"},
+                    {"klant": sl_klant, "taak": "Wordpress installeren", "cat": "Website Bouw", "deadline": date.today(), "prio": "🔥 Hoog"},
+                    {"klant": sl_klant, "taak": "Pagina structuur aanmaken (Sitemap)", "cat": "Website Bouw", "deadline": date.today(), "prio": "⏺️ Midden"},
+                    {"klant": sl_klant, "taak": "Responsiveness checken", "cat": "Website Bouw", "deadline": date.today(), "prio": "⏺️ Midden"},
+                    {"klant": sl_klant, "taak": "Projectmap aanmaken in Google Drive", "cat": "Administratie", "deadline": date.today(), "prio": "⏺️ Midden"},
+                ]
+                add_batch_tasks(tasks)
+                st.success(f"5 Taken toegevoegd voor {sl_klant}!")
+                st.rerun()
+                
+            if c_btn2.button("🔧 Onderhoud Starten"):
+                # DATUM LOGICA: Volgende 1 Jan en 1 Juni
+                today = date.today()
+                # 1. Eerstvolgende 1 Januari
+                year_jan = today.year + 1 if today >= date(today.year, 1, 1) else today.year
+                d_jan = date(year_jan, 1, 1)
+                
+                # 2. Eerstvolgende 1 Juni
+                year_jun = today.year + 1 if today >= date(today.year, 6, 1) else today.year
+                d_jun = date(year_jun, 6, 1)
+                
+                tasks = [
+                    {"klant": sl_klant, "taak": "Factuur Onderhoud versturen (Ronde Januari)", "cat": "Administratie", "deadline": d_jan, "prio": "🔥 Hoog"},
+                    {"klant": sl_klant, "taak": "Factuur Onderhoud versturen (Ronde Juni)", "cat": "Administratie", "deadline": d_jun, "prio": "🔥 Hoog"},
+                ]
+                add_batch_tasks(tasks)
+                st.success(f"Facturatie taken ingepland voor {sl_klant}!")
+                st.rerun()
+
+    st.divider()
+
     c_filt1, c_filt2 = st.columns(2)
     with c_filt1: k_filt = st.selectbox("📂 Filter op Klant:", ["Alle Projecten"] + all_companies, key="task_filter_client")
     with c_filt2: c_filt = st.selectbox("🏷️ Filter op Categorie:", ["Alle Categorieën"] + TASK_CATEGORIES, key="task_filter_cat")
     
-    with st.expander(f"➕ Taak toevoegen", expanded=False):
+    with st.expander(f"➕ Losse Taak toevoegen", expanded=False):
         with st.form("new_task"):
             ca, cb = st.columns(2)
             with ca:
