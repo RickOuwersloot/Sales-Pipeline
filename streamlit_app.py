@@ -43,7 +43,7 @@ if not check_password():
 # --- CONSTANTEN ---
 TASK_CATEGORIES = ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"]
 HOURLY_RATE = 30.0
-THEME_COLOR = "#ff6b6b" 
+THEME_COLOR = "#ff6b6b"
 
 # --- 2. CSS STYLING ---
 st.markdown(f"""
@@ -273,7 +273,6 @@ def delete_completed_tasks():
             rows.append([r.get('Status'), r.get('Klant'), r.get('Taak'), r.get('Categorie'), r.get('Deadline'), r.get('Prioriteit'), r.get('Notities'), r.get('ID')])
     sheet.clear(); sheet.update(rows)
 
-# NIEUW: FUNCTIE OM 1 LOSSE TAAK TE VERWIJDEREN
 def delete_single_task(task_id):
     sheet = get_sheet("Taken")
     if not sheet: return
@@ -291,13 +290,22 @@ def load_hours():
     records = robust_get_all_records(sheet)
     return [r for r in records if r.get('ID')]
 
-def log_time(klant, datum, uren, omschrijving):
+# NIEUW: BATCH SAVE FUNCTIE VOOR UREN
+def save_queued_hours(queue):
     sheet = get_sheet("Uren")
-    if not sheet: st.error("Maak tabblad 'Uren' aan!"); return
-    totaal = float(uren) * HOURLY_RATE
-    row = [str(datum), klant, float(uren), omschrijving, HOURLY_RATE, totaal, str(uuid.uuid4())]
-    try: sheet.append_row(row)
-    except: time.sleep(1); sheet.append_row(row)
+    if not sheet: st.error("Tabblad 'Uren' niet gevonden!"); return False
+    
+    rows = []
+    for h in queue:
+        totaal = float(h['uren']) * HOURLY_RATE
+        # Datum, Klant, Uren, Omschrijving, Tarief, Totaal, ID
+        rows.append([str(h['datum']), h['klant'], float(h['uren']), h['desc'], HOURLY_RATE, totaal, str(uuid.uuid4())])
+    
+    try:
+        sheet.append_rows(rows)
+        return True
+    except:
+        return False
 
 def delete_hour_entry(entry_id):
     sheet = get_sheet("Uren")
@@ -321,6 +329,7 @@ if 'leads_data' not in st.session_state:
     loaded = load_pipeline_data()
     st.session_state['leads_data'] = loaded if loaded else {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
 if 'board_key' not in st.session_state: st.session_state['board_key'] = 0
+if 'hour_queue' not in st.session_state: st.session_state['hour_queue'] = [] # Wachtrij voor uren
 
 all_companies = []
 for col_list in st.session_state['leads_data'].values():
@@ -594,7 +603,6 @@ with tab_tasks:
             opac = "0.5" if done else "1.0"
             strike = "text-decoration: line-through;" if done else ""
             with st.container(border=True):
-                # 4 kolommen: Check, Info, Meta, Delete
                 c_chk, c_inf, c_met, c_del = st.columns([0.5, 5, 2.5, 0.5])
                 with c_chk:
                     if st.checkbox("", value=done, key=f"chk_{t['ID']}") != done:
@@ -609,11 +617,9 @@ with tab_tasks:
                     pcol = "#ff4b4b" if "Hoog" in praw else "#ffa421" if "Midden" in praw else "#00c0f2"
                     st.markdown(f"<div style='display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;opacity:{opac}'><span style='color:{pcol};font-weight:bold;font-size:0.9em'>{praw}</span><span style='font-weight:700;color:#eee'>📅 {t['Deadline']}</span><span style='background:#333;padding:4px 8px;border-radius:4px;font-size:0.8em;border:1px solid #444'>{t['Categorie']}</span></div>", unsafe_allow_html=True)
                 with c_del:
-                    # DELETE KNOP
                     if st.button("🗑️", key=f"del_task_{t['ID']}"):
                         delete_single_task(t['ID'])
                         st.rerun()
-
                 with st.expander("✏️ Bewerk"):
                     with st.form(f"edit_{t['ID']}"):
                         e1, e2 = st.columns(2)
@@ -635,20 +641,59 @@ with tab_tasks:
     if st.button("🧹 Voltooide taken verwijderen", key="del_completed_tasks"):
         delete_completed_tasks(); st.success("Opgeruimd!"); st.rerun()
 
-# ================= TAB 4: UREN =================
+# ================= TAB 4: UREN (BATCHING UPDATE) =================
 with tab_hours:
     st.header("⏱️ Urenregistratie")
     st.markdown(f"**Vast Tarief:** €{HOURLY_RATE} / uur")
+    
+    # 1. INPUT FORMULIER
     with st.container(border=True):
         st.subheader("✍️ Tijd Schrijven")
-        with st.form("log_time"):
-            h1, h2, h3 = st.columns([2, 1, 2])
-            with h1: hk = st.selectbox("Klant", all_companies, key="hour_client"); hd = st.date_input("Datum", date.today(), key="hour_date")
-            with h2: hu = st.number_input("Uren", min_value=0.0, step=0.25, format="%.2f", key="hour_amount")
-            with h3: hdc = st.text_input("Omschrijving", key="hour_desc"); sub_h = st.form_submit_button("⏱️ Log Tijd", use_container_width=True)
-            if sub_h:
-                if hu > 0: log_time(hk, hd, hu, hdc); st.success(f"{hu} uur geschreven!"); st.rerun()
-                else: st.error("Vul uren in!")
+        
+        # We gebruiken hier st.form NIET meer, zodat we direct in de lijst kunnen updaten
+        h1, h2, h3 = st.columns([2, 1, 2])
+        with h1: 
+            hk = st.selectbox("Klant", all_companies, key="hour_client")
+            hd = st.date_input("Datum", date.today(), key="hour_date")
+        with h2: 
+            hu = st.number_input("Uren", min_value=0.0, step=0.25, format="%.2f", key="hour_amount")
+        with h3: 
+            hdc = st.text_input("Omschrijving", key="hour_desc")
+            st.write("") # Spacer
+            if st.button("➕ Voeg toe aan lijst", use_container_width=True):
+                if hu > 0:
+                    st.session_state['hour_queue'].append({
+                        "klant": hk, "datum": hd, "uren": hu, "desc": hdc
+                    })
+                    st.success("Toegevoegd aan wachtrij!")
+                else:
+                    st.error("Vul aantal uren in!")
+
+    # 2. DE WACHTRIJ (QUEUE)
+    if st.session_state['hour_queue']:
+        st.write("---")
+        st.subheader(f"⏳ Klaar om op te slaan ({len(st.session_state['hour_queue'])})")
+        
+        # Toon de wachtrij als een nette tabel
+        q_df = pd.DataFrame(st.session_state['hour_queue'])
+        st.table(q_df)
+        
+        # OPSLAAN KNOP
+        if st.button("💾 Alles Opslaan naar Google Sheets", type="primary", use_container_width=True):
+            if save_queued_hours(st.session_state['hour_queue']):
+                st.session_state['hour_queue'] = [] # Leegmaken na succes
+                st.success("✅ Alles succesvol opgeslagen!")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.error("Fout bij opslaan. Probeer opnieuw.")
+                
+        # LEEGMAKEN KNOP
+        if st.button("❌ Wachtrij wissen"):
+            st.session_state['hour_queue'] = []
+            st.rerun()
+
+    # 3. HET OVERZICHT (OUDE STIJL)
     st.divider()
     hf = st.selectbox("🔍 Filter overzicht op klant:", ["Alle Klanten"] + all_companies, key="hour_overview_filter")
     ah = load_hours()
@@ -659,7 +704,7 @@ with tab_hours:
     m1.metric("Totaal Uren", f"{th:.2f} uur")
     m2.metric("Totale Waarde", f"€ {tm:,.2f}")
     if fh:
-        st.markdown("### 📜 Logboek")
+        st.markdown("### 📜 Logboek (Geschiedenis)")
         for e in reversed(fh):
             with st.container(border=True):
                 ca, cb, cc, cd = st.columns([1.5, 4, 1.5, 1])
