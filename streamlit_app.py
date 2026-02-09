@@ -43,7 +43,6 @@ if not check_password():
 # --- CONSTANTEN ---
 TASK_CATEGORIES = ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"]
 HOURLY_RATE = 30.0
-# DE NIEUWE ROOD TINT (Licht Rood / Koraal)
 THEME_COLOR = "#ff6b6b" 
 
 # --- 2. CSS STYLING ---
@@ -69,7 +68,7 @@ st.markdown(f"""
     .stApp {{ background-color: #0E1117; }}
     .block-container {{ max_width: 100% !important; padding: 2rem; }}
     
-    /* TABS - NU IN HET ROOD */
+    /* TABS */
     .stTabs [data-baseweb="tab-list"] {{ gap: 20px; overflow-x: auto; flex-wrap: nowrap; }}
     .stTabs [data-baseweb="tab"] {{
         height: 50px; white-space: nowrap; background-color: #25262b;
@@ -83,7 +82,7 @@ st.markdown(f"""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 10px;
     }}
     
-    /* KANBAN (OOK ROOD ACCENT) */
+    /* KANBAN */
     div[class*="stSortable"] {{ display: flex; flex-direction: row; overflow-x: auto; gap: 15px; padding-bottom: 20px; }}
     div[class*="stSortable"] > div {{
         display: flex; flex-direction: column; flex: 0 0 auto; width: 300px;
@@ -274,6 +273,17 @@ def delete_completed_tasks():
             rows.append([r.get('Status'), r.get('Klant'), r.get('Taak'), r.get('Categorie'), r.get('Deadline'), r.get('Prioriteit'), r.get('Notities'), r.get('ID')])
     sheet.clear(); sheet.update(rows)
 
+# NIEUW: FUNCTIE OM 1 LOSSE TAAK TE VERWIJDEREN
+def delete_single_task(task_id):
+    sheet = get_sheet("Taken")
+    if not sheet: return
+    records = sheet.get_all_records()
+    rows = [['Status', 'Klant', 'Taak', 'Categorie', 'Deadline', 'Prioriteit', 'Notities', 'ID']]
+    for r in records:
+        if str(r.get('ID')) != task_id:
+            rows.append([r.get('Status'), r.get('Klant'), r.get('Taak'), r.get('Categorie'), r.get('Deadline'), r.get('Prioriteit'), r.get('Notities'), r.get('ID')])
+    sheet.clear(); sheet.update(rows)
+
 # --- UREN FUNCTIES ---
 def load_hours():
     sheet = get_sheet("Uren")
@@ -352,7 +362,7 @@ with tab_dash:
         c_chart, c_list = st.columns([2, 1])
         with c_chart:
             st.subheader("📈 Omzetverloop per Maand")
-            if not df.empty: st.line_chart(df.groupby('Maand')['Totaal'].sum(), color=THEME_COLOR) # Nu Rood
+            if not df.empty: st.line_chart(df.groupby('Maand')['Totaal'].sum(), color=THEME_COLOR)
             
         with c_list:
             st.subheader("🔧 Contracten")
@@ -510,15 +520,14 @@ with tab_pipeline:
 with tab_tasks:
     st.header("✅ Projectmanagement")
     
-    # 1. STANDAARD TAKEN (NU BOVENAAN!)
     with st.expander("⚡ Snel Taken Toevoegen (Checklists)", expanded=False):
         st.caption("Kies een standaardlijst om in één keer toe te voegen aan een klant.")
         sl_c1, sl_c2 = st.columns(2)
         with sl_c1:
             sl_klant = st.selectbox("Voor welke klant?", all_companies, key="checklist_client_select")
         with sl_c2:
-            st.write("") # Spacer
-            st.write("") # Spacer
+            st.write("") 
+            st.write("") 
             c_btn1, c_btn2 = st.columns(2)
             if c_btn1.button("🌐 Nieuwe Website"):
                 tasks = [
@@ -531,14 +540,12 @@ with tab_tasks:
                 add_batch_tasks(tasks)
                 st.success(f"5 Taken toegevoegd voor {sl_klant}!")
                 st.rerun()
-                
             if c_btn2.button("🔧 Onderhoud Starten"):
                 today = date.today()
                 year_jan = today.year + 1 if today >= date(today.year, 1, 1) else today.year
                 d_jan = date(year_jan, 1, 1)
                 year_jun = today.year + 1 if today >= date(today.year, 6, 1) else today.year
                 d_jun = date(year_jun, 6, 1)
-                
                 tasks = [
                     {"klant": sl_klant, "taak": "Factuur Onderhoud versturen (Ronde Januari)", "cat": "Administratie", "deadline": d_jan, "prio": "🔥 Hoog"},
                     {"klant": sl_klant, "taak": "Factuur Onderhoud versturen (Ronde Juni)", "cat": "Administratie", "deadline": d_jun, "prio": "🔥 Hoog"},
@@ -547,18 +554,14 @@ with tab_tasks:
                 st.success(f"Facturatie taken ingepland voor {sl_klant}!")
                 st.rerun()
 
-    # 2. LOSSE TAAK TOEVOEGEN (NU HIERONDER)
     with st.expander(f"➕ Losse Taak toevoegen", expanded=False):
         with st.form("new_task"):
             ca, cb = st.columns(2)
             with ca:
-                # Hier moeten we even een workaround doen voor de 'default' klant
-                # Als we al een filter hebben, gebruiken we die, anders de eerste uit de lijst
                 def_klant_idx = 0
                 if 'task_filter_client' in st.session_state and st.session_state['task_filter_client'] != "Alle Projecten":
                      if st.session_state['task_filter_client'] in all_companies:
                          def_klant_idx = all_companies.index(st.session_state['task_filter_client'])
-
                 n_klant = st.selectbox("Klant", all_companies, index=def_klant_idx, key="new_task_client")
                 n_taak = st.text_input("Taak")
                 n_cat = st.selectbox("Categorie", TASK_CATEGORIES, key="new_task_cat")
@@ -571,12 +574,10 @@ with tab_tasks:
 
     st.divider()
 
-    # 3. FILTERS (NU HIERONDER)
     c_filt1, c_filt2 = st.columns(2)
     with c_filt1: k_filt = st.selectbox("📂 Filter op Klant:", ["Alle Projecten"] + all_companies, key="task_filter_client")
     with c_filt2: c_filt = st.selectbox("🏷️ Filter op Categorie:", ["Alle Categorieën"] + TASK_CATEGORIES, key="task_filter_cat")
 
-    # 4. DE LIJST
     all_tasks = load_tasks()
     disp = all_tasks
     if k_filt != "Alle Projecten": disp = [t for t in disp if t.get('Klant') == k_filt]
@@ -593,7 +594,8 @@ with tab_tasks:
             opac = "0.5" if done else "1.0"
             strike = "text-decoration: line-through;" if done else ""
             with st.container(border=True):
-                c_chk, c_inf, c_met = st.columns([0.5, 6, 2.5])
+                # 4 kolommen: Check, Info, Meta, Delete
+                c_chk, c_inf, c_met, c_del = st.columns([0.5, 5, 2.5, 0.5])
                 with c_chk:
                     if st.checkbox("", value=done, key=f"chk_{t['ID']}") != done:
                         toggle_task_status(t['ID'], str(t.get('Status')).upper()); st.rerun()
@@ -606,6 +608,12 @@ with tab_tasks:
                     if praw not in ["🔥 Hoog", "⏺️ Midden", "💤 Laag"]: praw = "⏺️ Midden"
                     pcol = "#ff4b4b" if "Hoog" in praw else "#ffa421" if "Midden" in praw else "#00c0f2"
                     st.markdown(f"<div style='display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;opacity:{opac}'><span style='color:{pcol};font-weight:bold;font-size:0.9em'>{praw}</span><span style='font-weight:700;color:#eee'>📅 {t['Deadline']}</span><span style='background:#333;padding:4px 8px;border-radius:4px;font-size:0.8em;border:1px solid #444'>{t['Categorie']}</span></div>", unsafe_allow_html=True)
+                with c_del:
+                    # DELETE KNOP
+                    if st.button("🗑️", key=f"del_task_{t['ID']}"):
+                        delete_single_task(t['ID'])
+                        st.rerun()
+
                 with st.expander("✏️ Bewerk"):
                     with st.form(f"edit_{t['ID']}"):
                         e1, e2 = st.columns(2)
