@@ -179,10 +179,8 @@ def fix_missing_ids():
 def load_tasks():
     sheet = get_sheet("Taken")
     if not sheet: return []
-    # FIX voor de KeyError: we checken of de records wel kloppen
     try:
         records = sheet.get_all_records()
-        # Kleine schoonmaak: filter lege rijen eruit
         valid_records = [r for r in records if r.get('ID')]
         return valid_records
     except Exception:
@@ -192,7 +190,6 @@ def add_task(klant, taak, categorie, deadline, subtaken):
     sheet = get_sheet("Taken")
     if not sheet: return
     new_id = str(uuid.uuid4())
-    # Status, Klant, Taak, Cat, Deadline, Sub, ID
     row = ["FALSE", klant, taak, categorie, str(deadline), subtaken, new_id]
     sheet.append_row(row)
 
@@ -202,7 +199,6 @@ def toggle_task_status(task_id, current_status):
     records = sheet.get_all_records()
     for i, row in enumerate(records):
         if str(row.get('ID')) == task_id:
-            # Kolom A is index 1.
             new_val = "TRUE" if current_status == "FALSE" else "FALSE"
             sheet.update_cell(i + 2, 1, new_val)
             return
@@ -227,7 +223,6 @@ if 'leads_data' not in st.session_state:
     st.session_state['leads_data'] = loaded if loaded else {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
 if 'board_key' not in st.session_state: st.session_state['board_key'] = 0
 
-# Lijst met alle klanten verzamelen voor de dropdowns
 all_companies = []
 for col_list in st.session_state['leads_data'].values():
     for l in col_list:
@@ -243,7 +238,6 @@ tab_pipeline, tab_tasks = st.tabs(["📊 Pipeline", "✅ Projecten & Taken"])
 # TAB 1: DE PIPELINE
 # ==========================================
 with tab_pipeline:
-    # --- SIDEBAR ---
     with st.sidebar:
         try: st.image("Logo RO Marketing.png", width=150)
         except: st.warning("Logo uploaden!")
@@ -279,7 +273,6 @@ with tab_pipeline:
         with col_fix:
             if st.button("🛠️ IDs"): fix_missing_ids()
 
-    # --- HET BORD ---
     columns_config = [('col1', 'Te benaderen'), ('col2', 'Opgevolgd'), ('col3', 'Geland 🎉'), ('col4', 'Geen interesse'), ('trash', 'Prullenbak 🗑️')]
     kanban_data = []
     all_leads_list = []
@@ -307,7 +300,6 @@ with tab_pipeline:
             save_pipeline_data(new_state)
             st.rerun()
 
-    # --- DETAILS ---
     st.divider()
     if len(all_leads_list) > 0:
         c_sel, c_inf = st.columns([1, 2])
@@ -340,24 +332,19 @@ with tab_pipeline:
 with tab_tasks:
     st.header("✅ Projectmanagement")
     
-    # 1. Filteren op Klant
     c_filter, c_new = st.columns([1, 2])
     with c_filter:
-        # We voegen 'Alle klanten' toe als optie
         klant_filter = st.selectbox("📂 Selecteer Project / Klant:", ["Alle Projecten"] + all_companies)
     
-    # 2. Nieuwe Taak Toevoegen
     with st.expander(f"➕ Taak toevoegen voor {klant_filter if klant_filter != 'Alle Projecten' else 'een klant'}", expanded=False):
         with st.form("new_task_form", clear_on_submit=True):
             col_a, col_b = st.columns(2)
             with col_a:
-                # Als er al een klant is geselecteerd in het filter, vullen we die in. Anders dropdown.
                 if klant_filter != "Alle Projecten":
                     st.write(f"**Klant:** {klant_filter}")
                     sel_klant = klant_filter
                 else:
                     sel_klant = st.selectbox("Klant", all_companies)
-                
                 t_naam = st.text_input("Wat moet er gebeuren?")
                 t_cat = st.selectbox("Categorie", ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"])
             with col_b:
@@ -369,10 +356,8 @@ with tab_tasks:
                 st.success(f"Taak voor {sel_klant} toegevoegd!")
                 st.rerun()
 
-    # 3. Taken Weergeven
     all_tasks = load_tasks()
     
-    # Filter de taken op basis van de selectie
     if klant_filter != "Alle Projecten":
         display_tasks = [t for t in all_tasks if t.get('Klant') == klant_filter]
     else:
@@ -381,13 +366,11 @@ with tab_tasks:
     if not display_tasks:
         st.info(f"Geen taken gevonden voor {klant_filter}.")
     else:
-        # Sorteren: Eerst open taken, dan op deadline
         display_tasks.sort(key=lambda x: (x.get('Status') == 'TRUE', x.get('Deadline')))
         
         st.write(f"**{len(display_tasks)} taken voor {klant_filter}**")
         
         for task in display_tasks:
-            # Veiligheid: check of ID bestaat
             if not task.get('ID'): continue
             
             is_done = str(task.get('Status')).upper() == 'TRUE'
@@ -395,7 +378,8 @@ with tab_tasks:
             strike = "text-decoration: line-through;" if is_done else ""
             
             with st.container(border=True):
-                c_check, c_info, c_meta = st.columns([0.5, 6, 2])
+                # AANGEPAST: Kolomindeling 0.5 voor check, 5.5 voor info, 3 voor metadata (datum/cat)
+                c_check, c_info, c_meta = st.columns([0.5, 5.5, 3])
                 
                 with c_check:
                     check_val = st.checkbox("", value=is_done, key=f"chk_{task['ID']}")
@@ -404,15 +388,19 @@ with tab_tasks:
                         st.rerun()
                 
                 with c_info:
-                    # We tonen de klantnaam erbij als we op "Alle projecten" staan
                     klant_label = f"<span style='color: #2196F3; font-weight:bold;'>{task.get('Klant')}</span> | " if klant_filter == "Alle Projecten" else ""
-                    
                     st.markdown(f"<div style='opacity: {opacity}; {strike}'>{klant_label}<strong>{task['Taak']}</strong></div>", unsafe_allow_html=True)
                     if task.get('Subtaken'):
                         st.caption(f"📝 {task['Subtaken']}")
                 
+                # AANGEPAST: Datum en Categorie groter en naast elkaar (Flexbox)
                 with c_meta:
-                    st.markdown(f"<div style='opacity: {opacity}; font-size: 0.9em; text-align:right;'>📅 {task['Deadline']}<br><span style='background:#333; padding:2px 6px; border-radius:4px; font-size:0.8em;'>{task['Categorie']}</span></div>", unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div style='display: flex; gap: 15px; align-items: center; justify-content: flex-end; opacity: {opacity};'>
+                        <span style='font-size: 1.1rem; font-weight: 700; color: #eee;'>📅 {task['Deadline']}</span>
+                        <span style='background:#333; padding: 6px 12px; border-radius: 6px; font-size: 1rem; border: 1px solid #444;'>{task['Categorie']}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
 
         st.divider()
         if st.button("🧹 Voltooide taken verwijderen uit lijst"):
