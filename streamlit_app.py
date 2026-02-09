@@ -2,6 +2,7 @@ import streamlit as st
 from streamlit_sortables import sort_items
 import uuid
 import json
+import time
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import date, datetime
@@ -14,6 +15,9 @@ st.set_page_config(
     initial_sidebar_state="auto" 
 )
 
+# --- CONSTANTEN ---
+TASK_CATEGORIES = ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"]
+
 # --- 2. CSS STYLING ---
 st.markdown("""
     <style>
@@ -24,12 +28,10 @@ st.markdown("""
         font-family: 'Montserrat', sans-serif !important; 
     }
     
-    /* ICON SAVER FIX */
     button, i, span[class^="material-symbols"] { font-family: inherit !important; }
     [data-testid="stSidebarCollapsedControl"] button,
     [data-testid="stSidebarExpandedControl"] button { font-family: "Source Sans Pro", sans-serif !important; }
 
-    /* HEADERS */
     h1, h2, h3, .stHeading, .st-emotion-cache-10trblm {
         font-family: 'Dela Gothic One', cursive !important;
         letter-spacing: 1px;
@@ -39,7 +41,6 @@ st.markdown("""
     .stApp { background-color: #0E1117; }
     .block-container { max_width: 100% !important; padding: 2rem; }
     
-    /* TABS */
     .stTabs [data-baseweb="tab-list"] { gap: 20px; }
     .stTabs [data-baseweb="tab"] {
         height: 50px; white-space: pre-wrap; background-color: #25262b;
@@ -47,7 +48,6 @@ st.markdown("""
     }
     .stTabs [aria-selected="true"] { background-color: #2196F3 !important; color: white !important; }
 
-    /* KANBAN */
     div[class*="stSortable"] { display: flex; flex-direction: row; overflow-x: auto; gap: 15px; padding-bottom: 20px; }
     div[class*="stSortable"] > div {
         display: flex; flex-direction: column; flex: 0 0 auto; width: 300px;
@@ -89,7 +89,14 @@ def get_sheet(sheet_name="Sheet1"):
 def load_pipeline_data():
     sheet = get_sheet("Sheet1")
     if not sheet: return None
-    records = sheet.get_all_records()
+    try:
+        records = sheet.get_all_records()
+    except gspread.exceptions.APIError:
+        st.warning("⚠️ Google doet even moeilijk (te veel verzoeken). Even wachten..."); time.sleep(2)
+        try: records = sheet.get_all_records()
+        except: return None
+    except: return None
+
     data_structure = {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
     status_map = {'Te benaderen': 'col1', 'Opgevolgd': 'col2', 'Geland': 'col3', 'Geen interesse': 'col4', 'Prullenbak': 'trash'}
     for row in records:
@@ -114,12 +121,14 @@ def save_pipeline_data(leads_data):
         st_txt = col_map.get(col_key, 'Te benaderen')
         for i in items:
             rows.append([st_txt, i.get('name',''), i.get('price',''), i.get('contact',''), i.get('email',''), i.get('phone',''), i.get('website',''), i.get('notes',''), i.get('id', str(uuid.uuid4()))])
-    sheet.clear(); sheet.update(rows)
+    try: sheet.clear(); sheet.update(rows)
+    except: time.sleep(2); sheet.clear(); sheet.update(rows)
 
 def fix_missing_ids():
     sheet = get_sheet("Sheet1")
     if not sheet: return
-    records = sheet.get_all_records()
+    try: records = sheet.get_all_records()
+    except: return
     rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Notities', 'ID']]
     seen = set(); change = False
     for r in records:
@@ -131,35 +140,38 @@ def fix_missing_ids():
     if change: sheet.clear(); sheet.update(rows); st.success("IDs fixed!"); st.cache_resource.clear(); st.rerun()
     else: st.toast("IDs OK")
 
-# --- TAKEN FUNCTIES (AANGEPAST) ---
+# --- TAKEN FUNCTIES ---
 def load_tasks():
     sheet = get_sheet("Taken")
     if not sheet: return []
     try: return [r for r in sheet.get_all_records() if r.get('ID')]
+    except gspread.exceptions.APIError:
+        time.sleep(2)
+        try: return [r for r in sheet.get_all_records() if r.get('ID')]
+        except: return []
     except: return []
 
 def add_task(klant, taak, categorie, deadline, prioriteit, notities):
     sheet = get_sheet("Taken")
     if not sheet: return
-    # Status, Klant, Taak, Categorie, Deadline, Prioriteit, Notities, ID
     row = ["FALSE", klant, taak, categorie, str(deadline), prioriteit, notities, str(uuid.uuid4())]
-    sheet.append_row(row)
+    try: sheet.append_row(row)
+    except: time.sleep(1); sheet.append_row(row)
 
 def update_task_data(task_id, new_data):
-    """Update een volledige taakregel op basis van ID"""
     sheet = get_sheet("Taken")
     if not sheet: return
     records = sheet.get_all_records()
     for i, row in enumerate(records):
         if str(row.get('ID')) == task_id:
-            # We updaten de cellen B t/m G (Index 2 t/m 7)
-            # Row index is i + 2 (want header = 1 en list begint bij 0)
-            sheet.update_cell(i + 2, 2, new_data['Klant'])
-            sheet.update_cell(i + 2, 3, new_data['Taak'])
-            sheet.update_cell(i + 2, 4, new_data['Categorie'])
-            sheet.update_cell(i + 2, 5, str(new_data['Deadline']))
-            sheet.update_cell(i + 2, 6, new_data['Prioriteit'])
-            sheet.update_cell(i + 2, 7, new_data['Notities'])
+            try:
+                sheet.update_cell(i + 2, 2, new_data['Klant'])
+                sheet.update_cell(i + 2, 3, new_data['Taak'])
+                sheet.update_cell(i + 2, 4, new_data['Categorie'])
+                sheet.update_cell(i + 2, 5, str(new_data['Deadline']))
+                sheet.update_cell(i + 2, 6, new_data['Prioriteit'])
+                sheet.update_cell(i + 2, 7, new_data['Notities'])
+            except: st.error("Fout bij opslaan."); return
             return
 
 def toggle_task_status(task_id, current_status):
@@ -169,7 +181,8 @@ def toggle_task_status(task_id, current_status):
     for i, row in enumerate(records):
         if str(row.get('ID')) == task_id:
             new_val = "TRUE" if current_status == "FALSE" else "FALSE"
-            sheet.update_cell(i + 2, 1, new_val)
+            try: sheet.update_cell(i + 2, 1, new_val)
+            except: time.sleep(1); sheet.update_cell(i + 2, 1, new_val)
             return
 
 def delete_completed_tasks():
@@ -262,14 +275,16 @@ with tab_pipeline:
                         if sel.get('website'): st.markdown(f"🌐 [{sel['website']}]({'https://'+sel['website'] if not sel['website'].startswith('http') else sel['website']})")
                     st.markdown("---"); st.info(sel.get('notes') or "Geen notities.")
 
-# ================= TAB 2: TAKEN (EDITABLE FIX 🛠️) =================
+# ================= TAB 2: TAKEN (MET EXTRA FILTER) =================
 with tab_tasks:
     st.header("✅ Projectmanagement")
     
-    # FILTER
-    c_filt, c_dummy = st.columns([1, 2])
-    with c_filt:
-        klant_filter = st.selectbox("📂 Selecteer Project / Klant:", ["Alle Projecten"] + all_companies)
+    # 1. FILTERS (NU MET CATEGORIE)
+    c_filt1, c_filt2 = st.columns(2)
+    with c_filt1:
+        klant_filter = st.selectbox("📂 Filter op Klant:", ["Alle Projecten"] + all_companies)
+    with c_filt2:
+        cat_filter = st.selectbox("🏷️ Filter op Categorie:", ["Alle Categorieën"] + TASK_CATEGORIES)
     
     # NIEUWE TAAK
     with st.expander(f"➕ Taak toevoegen", expanded=False):
@@ -278,7 +293,7 @@ with tab_tasks:
             with ca:
                 n_klant = klant_filter if klant_filter != "Alle Projecten" else st.selectbox("Klant", all_companies)
                 n_taak = st.text_input("Taak")
-                n_cat = st.selectbox("Categorie", ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"])
+                n_cat = st.selectbox("Categorie", TASK_CATEGORIES)
             with cb:
                 n_date = st.date_input("Deadline", date.today())
                 n_prio = st.selectbox("Prioriteit", ["🔥 Hoog", "⏺️ Midden", "💤 Laag"])
@@ -288,18 +303,27 @@ with tab_tasks:
                 add_task(n_klant, n_taak, n_cat, n_date, n_prio, n_note)
                 st.success("Opgeslagen!"); st.rerun()
 
-    # TAKEN LIJST
+    # TAKEN LIJST OPHALEN EN FILTEREN
     all_tasks = load_tasks()
-    disp_tasks = [t for t in all_tasks if t.get('Klant') == klant_filter] if klant_filter != "Alle Projecten" else all_tasks
+    disp_tasks = all_tasks
 
-    if not disp_tasks: st.info(f"Geen taken voor {klant_filter}.")
+    # Filter 1: Klant
+    if klant_filter != "Alle Projecten":
+        disp_tasks = [t for t in disp_tasks if t.get('Klant') == klant_filter]
+    
+    # Filter 2: Categorie (NIEUW)
+    if cat_filter != "Alle Categorieën":
+        disp_tasks = [t for t in disp_tasks if t.get('Categorie') == cat_filter]
+
+    if not disp_tasks:
+        st.info(f"Geen taken gevonden voor deze filters.")
     else:
-        # SORTEREN: 1. Openstaand, 2. Prioriteit (Hoog>Midden>Laag), 3. Datum
+        # SORTEREN
         prio_map = {"🔥 Hoog": 1, "⏺️ Midden": 2, "💤 Laag": 3}
         disp_tasks.sort(key=lambda x: (
-            str(x.get('Status')).upper() == 'TRUE', # Afgevinkt onderaan
-            prio_map.get(x.get('Prioriteit'), 2),   # Prio sortering
-            x.get('Deadline')                       # Datum sortering
+            str(x.get('Status')).upper() == 'TRUE',
+            prio_map.get(x.get('Prioriteit'), 2), 
+            x.get('Deadline')
         ))
         
         st.write(f"**{len(disp_tasks)} taken**")
@@ -309,9 +333,7 @@ with tab_tasks:
             is_done = str(task.get('Status')).upper() == 'TRUE'
             opacity = "0.5" if is_done else "1.0"
             strike = "text-decoration: line-through;" if is_done else ""
-            border_c = "#4CAF50" if is_done else "#2196F3"
             
-            # TAAK CONTAINER
             with st.container(border=True):
                 c_check, c_info, c_meta = st.columns([0.5, 5.5, 3])
                 
@@ -326,11 +348,9 @@ with tab_tasks:
                 
                 with c_meta:
                     prio_raw = task.get('Prioriteit', "⏺️ Midden")
-                    # VEILIGHEIDSCHECK VOOR PRIORITEIT (HIER ZIT DE FIX VOOR DE ERROR)
-                    if prio_raw not in ["🔥 Hoog", "⏺️ Midden", "💤 Laag"]:
-                        prio_raw = "⏺️ Midden"
-                    
+                    if prio_raw not in ["🔥 Hoog", "⏺️ Midden", "💤 Laag"]: prio_raw = "⏺️ Midden"
                     prio_color = "#ff4b4b" if "Hoog" in prio_raw else "#ffa421" if "Midden" in prio_raw else "#00c0f2"
+                    
                     st.markdown(f"""
                     <div style='display:flex;gap:10px;align-items:center;justify-content:flex-end;opacity:{opacity}'>
                         <span style='color:{prio_color};font-weight:bold;font-size:0.9em'>{prio_raw}</span>
@@ -339,33 +359,25 @@ with tab_tasks:
                     </div>
                     """, unsafe_allow_html=True)
                 
-                # BEWERK FUNCTIE (UITKLAPBAAR)
-                with st.expander("✏️ Bewerk Taak / Voeg notitie toe"):
+                with st.expander("✏️ Bewerk Taak"):
                     with st.form(f"edit_{task['ID']}"):
                         ec1, ec2 = st.columns(2)
                         with ec1:
                             e_klant = st.selectbox("Klant", all_companies, index=all_companies.index(task['Klant']) if task['Klant'] in all_companies else 0)
                             e_taak = st.text_input("Taak", task['Taak'])
-                            e_cat = st.selectbox("Categorie", ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"], index=["Website Bouw", "Content", "Administratie", "Meeting", "Overig"].index(task['Categorie']) if task['Categorie'] in ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"] else 0)
+                            e_cat = st.selectbox("Categorie", TASK_CATEGORIES, index=TASK_CATEGORIES.index(task['Categorie']) if task['Categorie'] in TASK_CATEGORIES else 0)
                         with ec2:
                             d_val = datetime.strptime(task['Deadline'], "%Y-%m-%d").date() if task['Deadline'] else date.today()
                             e_date = st.date_input("Deadline", d_val)
-                            
-                            # VEILIGHEIDSCHECK OOK HIER
                             p_safe = task.get('Prioriteit', "⏺️ Midden")
                             if p_safe not in ["🔥 Hoog", "⏺️ Midden", "💤 Laag"]: p_safe = "⏺️ Midden"
                             e_prio = st.selectbox("Prioriteit", ["🔥 Hoog", "⏺️ Midden", "💤 Laag"], index=["🔥 Hoog", "⏺️ Midden", "💤 Laag"].index(p_safe))
                         
-                        e_note = st.text_area("Notities & Opmerkingen", task.get('Notities', ''))
+                        e_note = st.text_area("Notities", task.get('Notities', ''))
                         
                         if st.form_submit_button("💾 Wijzigingen Opslaan"):
-                            new_data = {
-                                'Klant': e_klant, 'Taak': e_taak, 'Categorie': e_cat,
-                                'Deadline': e_date, 'Prioriteit': e_prio, 'Notities': e_note
-                            }
-                            update_task_data(task['ID'], new_data)
-                            st.success("Opgeslagen!")
-                            st.rerun()
+                            new_data = {'Klant': e_klant, 'Taak': e_taak, 'Categorie': e_cat, 'Deadline': e_date, 'Prioriteit': e_prio, 'Notities': e_note}
+                            update_task_data(task['ID'], new_data); st.success("Opgeslagen!"); st.rerun()
 
     st.divider()
     if st.button("🧹 Voltooide taken verwijderen"):
