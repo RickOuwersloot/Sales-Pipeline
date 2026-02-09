@@ -17,10 +17,8 @@ st.set_page_config(
 # --- 2. CSS STYLING ---
 st.markdown("""
     <style>
-    /* A. FONTS IMPORTEREN */
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
 
-    /* B. ALGEMENE STYLING */
     .stApp { font-family: 'Montserrat', sans-serif !important; }
     p, input, textarea, .stMarkdown, h1, h2, h3, h4, h5, h6, .stSelectbox, .stTextInput, .stDateInput { 
         font-family: 'Montserrat', sans-serif !important; 
@@ -31,66 +29,34 @@ st.markdown("""
     [data-testid="stSidebarCollapsedControl"] button,
     [data-testid="stSidebarExpandedControl"] button { font-family: "Source Sans Pro", sans-serif !important; }
 
-    /* C. KOPTEKSTEN */
+    /* HEADERS */
     h1, h2, h3, .stHeading, .st-emotion-cache-10trblm {
         font-family: 'Dela Gothic One', cursive !important;
         letter-spacing: 1px;
         font-weight: 400 !important;
     }
 
-    /* D. LAYOUT & KLEUREN */
     .stApp { background-color: #0E1117; }
     .block-container { max_width: 100% !important; padding: 2rem; }
     
-    /* TABBLADEN STYLING */
+    /* TABS */
     .stTabs [data-baseweb="tab-list"] { gap: 20px; }
     .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: #25262b;
-        border-radius: 5px 5px 0 0;
-        gap: 1px;
-        padding-top: 10px;
-        padding-bottom: 10px;
-        color: white;
+        height: 50px; white-space: pre-wrap; background-color: #25262b;
+        border-radius: 5px 5px 0 0; gap: 1px; padding: 10px; color: white;
     }
-    .stTabs [aria-selected="true"] {
-        background-color: #2196F3 !important;
-        color: white !important;
-    }
+    .stTabs [aria-selected="true"] { background-color: #2196F3 !important; color: white !important; }
 
-    /* E. SIDEBAR BREEDTE */
-    section[data-testid="stSidebar"] { width: 400px !important; min-width: 400px !important; }
-
-    /* F. KANBAN LAYOUT */
-    div[class*="stSortable"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        overflow-x: auto !important;
-        align-items: flex-start !important;
-        gap: 15px !important;
-        padding-bottom: 20px !important;
-    }
+    /* KANBAN */
+    div[class*="stSortable"] { display: flex; flex-direction: row; overflow-x: auto; gap: 15px; padding-bottom: 20px; }
     div[class*="stSortable"] > div {
-        display: flex !important;
-        flex-direction: column !important;
-        flex: 0 0 auto !important;
-        width: 300px !important;
-        min-width: 300px !important;
-        background-color: #25262b !important;
-        border: 1px solid #333 !important;
-        border-radius: 10px !important;
-        padding: 10px !important;
+        display: flex; flex-direction: column; flex: 0 0 auto; width: 300px;
+        background-color: #25262b; border: 1px solid #333; border-radius: 10px; padding: 10px;
     }
-    div[class*="stSortable"] div {
-        background-color: #2b313e !important; color: white !important; border-radius: 6px !important;
-    }
+    div[class*="stSortable"] div { background-color: #2b313e !important; color: white !important; border-radius: 6px !important; }
     div[class*="stSortable"] > div > div {
-        border: 1px solid #2196F3 !important;
-        border-left: 6px solid #2196F3 !important; 
-        margin-bottom: 8px !important; padding: 12px !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
+        border: 1px solid #2196F3 !important; border-left: 6px solid #2196F3 !important; 
+        margin-bottom: 8px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
     }
     div[class*="stSortable"] > div > div:hover {
         background-color: #363c4e !important; border-color: #64b5f6 !important; transform: translateY(-2px);
@@ -115,83 +81,86 @@ def get_google_client():
 def get_sheet(sheet_name="Sheet1"):
     client = get_google_client()
     if client:
-        try:
-            return client.open("MijnSalesCRM").worksheet(sheet_name)
-        except:
-            st.error(f"Kan tabblad '{sheet_name}' niet vinden! Heb je die aangemaakt?")
-            return None
+        try: return client.open("MijnSalesCRM").worksheet(sheet_name)
+        except: st.error(f"Kan tabblad '{sheet_name}' niet vinden!"); return None
     return None
 
-# --- FUNCTIES VOOR PIPELINE ---
+# --- PIPELINE FUNCTIES ---
 def load_pipeline_data():
     sheet = get_sheet("Sheet1")
     if not sheet: return None
     records = sheet.get_all_records()
     data_structure = {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
     status_map = {'Te benaderen': 'col1', 'Opgevolgd': 'col2', 'Geland': 'col3', 'Geen interesse': 'col4', 'Prullenbak': 'trash'}
-    
     for row in records:
         if row.get('Bedrijf'):
             raw_id = str(row.get('ID', '')).strip()
-            safe_id = raw_id if raw_id else str(uuid.uuid4())
             lead = {
-                'id': safe_id, 'name': row.get('Bedrijf'), 'price': row.get('Prijs'),
+                'id': raw_id if raw_id else str(uuid.uuid4()), 
+                'name': row.get('Bedrijf'), 'price': row.get('Prijs'),
                 'contact': row.get('Contact'), 'email': row.get('Email'),
                 'phone': row.get('Telefoon'), 'website': row.get('Website'), 'notes': row.get('Notities')
             }
-            status = row.get('Status', 'Te benaderen')
-            col_key = status_map.get(status, 'col1')
+            col_key = status_map.get(row.get('Status', 'Te benaderen'), 'col1')
             data_structure[col_key].append(lead)
     return data_structure
 
 def save_pipeline_data(leads_data):
     sheet = get_sheet("Sheet1")
     if not sheet: return
-    rows_to_write = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Notities', 'ID']]
+    rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Notities', 'ID']]
     col_map = {'col1': 'Te benaderen', 'col2': 'Opgevolgd', 'col3': 'Geland', 'col4': 'Geen interesse', 'trash': 'Prullenbak'}
     for col_key, items in leads_data.items():
-        status_text = col_map.get(col_key, 'Te benaderen')
-        for item in items:
-            row = [status_text, item.get('name', ''), item.get('price', ''), item.get('contact', ''), item.get('email', ''), item.get('phone', ''), item.get('website', ''), item.get('notes', ''), item.get('id', str(uuid.uuid4()))]
-            rows_to_write.append(row)
-    sheet.clear()
-    sheet.update(rows_to_write)
+        st_txt = col_map.get(col_key, 'Te benaderen')
+        for i in items:
+            rows.append([st_txt, i.get('name',''), i.get('price',''), i.get('contact',''), i.get('email',''), i.get('phone',''), i.get('website',''), i.get('notes',''), i.get('id', str(uuid.uuid4()))])
+    sheet.clear(); sheet.update(rows)
 
 def fix_missing_ids():
     sheet = get_sheet("Sheet1")
     if not sheet: return
     records = sheet.get_all_records()
-    updated_rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Notities', 'ID']]
-    existing_ids = set()
-    changes_made = False
-    for row in records:
-        current_id = str(row.get('ID', '')).strip()
-        if not current_id or current_id in existing_ids:
-            new_id = str(uuid.uuid4()); row['ID'] = new_id; changes_made = True
-        else: new_id = current_id
-        existing_ids.add(new_id)
-        updated_rows.append([row.get('Status', 'Te benaderen'), row.get('Bedrijf', ''), row.get('Prijs', ''), row.get('Contact', ''), row.get('Email', ''), row.get('Telefoon', ''), row.get('Website', ''), row.get('Notities', ''), new_id])
-    if changes_made:
-        sheet.clear(); sheet.update(updated_rows); st.success("✅ IDs gerepareerd!"); st.cache_resource.clear(); st.rerun()
-    else: st.toast("👍 IDs OK")
+    rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Notities', 'ID']]
+    seen = set(); change = False
+    for r in records:
+        cid = str(r.get('ID','')).strip()
+        if not cid or cid in seen: nid = str(uuid.uuid4()); r['ID'] = nid; change = True
+        else: nid = cid
+        seen.add(nid)
+        rows.append([r.get('Status',''), r.get('Bedrijf',''), r.get('Prijs',''), r.get('Contact',''), r.get('Email',''), r.get('Telefoon',''), r.get('Website',''), r.get('Notities',''), nid])
+    if change: sheet.clear(); sheet.update(rows); st.success("IDs fixed!"); st.cache_resource.clear(); st.rerun()
+    else: st.toast("IDs OK")
 
-# --- FUNCTIES VOOR TAKEN ---
+# --- TAKEN FUNCTIES (AANGEPAST) ---
 def load_tasks():
     sheet = get_sheet("Taken")
     if not sheet: return []
-    try:
-        records = sheet.get_all_records()
-        valid_records = [r for r in records if r.get('ID')]
-        return valid_records
-    except Exception:
-        return []
+    try: return [r for r in sheet.get_all_records() if r.get('ID')]
+    except: return []
 
-def add_task(klant, taak, categorie, deadline, subtaken):
+def add_task(klant, taak, categorie, deadline, prioriteit, notities):
     sheet = get_sheet("Taken")
     if not sheet: return
-    new_id = str(uuid.uuid4())
-    row = ["FALSE", klant, taak, categorie, str(deadline), subtaken, new_id]
+    # Status, Klant, Taak, Categorie, Deadline, Prioriteit, Notities, ID
+    row = ["FALSE", klant, taak, categorie, str(deadline), prioriteit, notities, str(uuid.uuid4())]
     sheet.append_row(row)
+
+def update_task_data(task_id, new_data):
+    """Update een volledige taakregel op basis van ID"""
+    sheet = get_sheet("Taken")
+    if not sheet: return
+    records = sheet.get_all_records()
+    for i, row in enumerate(records):
+        if str(row.get('ID')) == task_id:
+            # We updaten de cellen B t/m G (Index 2 t/m 7)
+            # Row index is i + 2 (want header = 1 en list begint bij 0)
+            sheet.update_cell(i + 2, 2, new_data['Klant'])
+            sheet.update_cell(i + 2, 3, new_data['Taak'])
+            sheet.update_cell(i + 2, 4, new_data['Categorie'])
+            sheet.update_cell(i + 2, 5, str(new_data['Deadline']))
+            sheet.update_cell(i + 2, 6, new_data['Prioriteit'])
+            sheet.update_cell(i + 2, 7, new_data['Notities'])
+            return
 
 def toggle_task_status(task_id, current_status):
     sheet = get_sheet("Taken")
@@ -207,17 +176,13 @@ def delete_completed_tasks():
     sheet = get_sheet("Taken")
     if not sheet: return
     records = sheet.get_all_records()
-    rows_to_keep = [['Status', 'Klant', 'Taak', 'Categorie', 'Deadline', 'Subtaken', 'ID']]
-    for row in records:
-        if str(row.get('Status')).upper() != "TRUE":
-            rows_to_keep.append([
-                row.get('Status'), row.get('Klant'), row.get('Taak'), 
-                row.get('Categorie'), row.get('Deadline'), row.get('Subtaken'), row.get('ID')
-            ])
-    sheet.clear()
-    sheet.update(rows_to_keep)
+    rows = [['Status', 'Klant', 'Taak', 'Categorie', 'Deadline', 'Prioriteit', 'Notities', 'ID']]
+    for r in records:
+        if str(r.get('Status')).upper() != "TRUE":
+            rows.append([r.get('Status'), r.get('Klant'), r.get('Taak'), r.get('Categorie'), r.get('Deadline'), r.get('Prioriteit'), r.get('Notities'), r.get('ID')])
+    sheet.clear(); sheet.update(rows)
 
-# --- 4. INITIALISATIE ---
+# --- INITIALISATIE ---
 if 'leads_data' not in st.session_state:
     loaded = load_pipeline_data()
     st.session_state['leads_data'] = loaded if loaded else {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
@@ -225,185 +190,175 @@ if 'board_key' not in st.session_state: st.session_state['board_key'] = 0
 
 all_companies = []
 for col_list in st.session_state['leads_data'].values():
-    for l in col_list:
-        all_companies.append(l['name'])
+    for l in col_list: all_companies.append(l['name'])
 all_companies.sort()
 
-# --- 5. APP LAYOUT MET TABS ---
+# --- APP LAYOUT ---
 st.title("🚀 RO Marketing CRM")
-
 tab_pipeline, tab_tasks = st.tabs(["📊 Pipeline", "✅ Projecten & Taken"])
 
-# ==========================================
-# TAB 1: DE PIPELINE
-# ==========================================
+# ================= TAB 1: PIPELINE =================
 with tab_pipeline:
     with st.sidebar:
         try: st.image("Logo RO Marketing.png", width=150)
-        except: st.warning("Logo uploaden!")
-        
+        except: st.warning("Logo?")
         with st.expander("➕ Nieuwe Deal", expanded=False):
-            with st.form("add_lead_form", clear_on_submit=True):
-                company = st.text_input("Bedrijf *")
-                contact = st.text_input("Contact")
-                email = st.text_input("Email")
-                phone = st.text_input("Tel")
-                website = st.text_input("Web")
-                price = st.text_input("€")
-                notes = st.text_area("Note")
+            with st.form("add_lead"):
+                comp = st.text_input("Bedrijf *")
+                cont = st.text_input("Contact")
+                mail = st.text_input("Email")
+                tel = st.text_input("Tel")
+                web = st.text_input("Web")
+                pri = st.text_input("€")
+                not_ = st.text_area("Note")
                 if st.form_submit_button("Toevoegen"):
-                    if not company: st.error("Naam nodig!")
+                    if not comp: st.error("Naam!")
                     else:
-                        new_item = {'id': str(uuid.uuid4()), 'name': company, 'contact': contact, 'email': email, 'phone': phone, 'website': website, 'price': price, 'notes': notes}
-                        st.session_state['leads_data']['col1'].insert(0, new_item)
+                        ni = {'id': str(uuid.uuid4()), 'name': comp, 'contact': cont, 'email': mail, 'phone': tel, 'website': web, 'price': pri, 'notes': not_}
+                        st.session_state['leads_data']['col1'].insert(0, ni)
                         save_pipeline_data(st.session_state['leads_data'])
-                        st.session_state['board_key'] += 1
-                        st.rerun()
-        
-        if len(st.session_state['leads_data']['trash']) > 0:
-            if st.button("🗑️ Prullenbak Legen"):
-                st.session_state['leads_data']['trash'] = []
-                save_pipeline_data(st.session_state['leads_data'])
-                st.session_state['board_key'] += 1
-                st.rerun()
-        
-        col_ref, col_fix = st.columns(2)
-        with col_ref:
-            if st.button("🔄 Reload"): st.cache_resource.clear(); del st.session_state['leads_data']; st.rerun()
-        with col_fix:
-            if st.button("🛠️ IDs"): fix_missing_ids()
+                        st.session_state['board_key'] += 1; st.rerun()
+        if st.button("🗑️ Prullenbak Legen"):
+            st.session_state['leads_data']['trash'] = []; save_pipeline_data(st.session_state['leads_data']); st.session_state['board_key'] += 1; st.rerun()
+        c1, c2 = st.columns(2)
+        if c1.button("🔄"): st.cache_resource.clear(); del st.session_state['leads_data']; st.rerun()
+        if c2.button("🛠️"): fix_missing_ids()
 
-    columns_config = [('col1', 'Te benaderen'), ('col2', 'Opgevolgd'), ('col3', 'Geland 🎉'), ('col4', 'Geen interesse'), ('trash', 'Prullenbak 🗑️')]
-    kanban_data = []
-    all_leads_list = []
-    for db_key, display_name in columns_config:
-        items = []
-        for lead in st.session_state['leads_data'][db_key]:
-            price_part = f" | {lead['price']}" if lead['price'] else ""
-            items.append(f"{lead['name']}{price_part}")
-            all_leads_list.append(lead)
-        kanban_data.append({'header': display_name, 'items': items})
+    cols = [('col1', 'Te benaderen'), ('col2', 'Opgevolgd'), ('col3', 'Geland 🎉'), ('col4', 'Geen interesse'), ('trash', 'Prullenbak 🗑️')]
+    k_data = []
+    all_leads = []
+    for k, name in cols:
+        items = [f"{l['name']}{(' | ' + l['price']) if l['price'] else ''}" for l in st.session_state['leads_data'][k]]
+        all_leads.extend(st.session_state['leads_data'][k])
+        k_data.append({'header': name, 'items': items})
 
-    sorted_data = sort_items(kanban_data, multi_containers=True, key=f"board_{st.session_state['board_key']}")
+    s_data = sort_items(k_data, multi_containers=True, key=f"board_{st.session_state['board_key']}")
 
-    if len(sorted_data) == 5:
-        new_state = {}
-        lead_lookup = {f"{l['name']}{(' | ' + l['price']) if l['price'] else ''}": l for l in all_leads_list}
-        for i, col_data in enumerate(sorted_data):
-            new_col_items = [lead_lookup[item_str] for item_str in col_data['items'] if item_str in lead_lookup]
-            new_state[columns_config[i][0]] = new_col_items
-        
-        current_ids = [[l['id'] for l in col] for col in st.session_state['leads_data'].values()]
-        new_ids = [[l['id'] for l in col] for col in new_state.values()]
-        if current_ids != new_ids:
-            st.session_state['leads_data'] = new_state
-            save_pipeline_data(new_state)
-            st.rerun()
+    if len(s_data) == 5:
+        new_st = {}
+        lookup = {f"{l['name']}{(' | ' + l['price']) if l['price'] else ''}": l for l in all_leads}
+        for i, cd in enumerate(s_data):
+            new_st[cols[i][0]] = [lookup[x] for x in cd['items'] if x in lookup]
+        curr_ids = [[l['id'] for l in c] for c in st.session_state['leads_data'].values()]
+        new_ids = [[l['id'] for l in c] for c in new_st.values()]
+        if curr_ids != new_ids:
+            st.session_state['leads_data'] = new_st; save_pipeline_data(new_st); st.rerun()
 
     st.divider()
-    if len(all_leads_list) > 0:
+    if len(all_leads) > 0:
         c_sel, c_inf = st.columns([1, 2])
         with c_sel:
-            filter_options = ["Alles tonen"] + [name for _, name in columns_config]
-            selected_filter = st.selectbox("🔍 Filter op fase:", filter_options)
-            filtered_leads = all_leads_list if selected_filter == "Alles tonen" else st.session_state['leads_data'][next((k for k, n in columns_config if n == selected_filter), 'col1')]
-            deal_options = {f"{l['name']}": l['id'] for l in filtered_leads}
-            sel_deal = next((l for l in all_leads_list if l['id'] == deal_options[st.selectbox("Selecteer deal:", list(deal_options.keys()))]), None) if deal_options else None
-        
-        if sel_deal:
+            fil = st.selectbox("🔍 Filter:", ["Alles"] + [n for _, n in cols])
+            f_leads = all_leads if fil == "Alles" else st.session_state['leads_data'][next((k for k, n in cols if n == fil), 'col1')]
+            d_opts = {f"{l['name']}": l['id'] for l in f_leads}
+            sel = next((l for l in all_leads if l['id'] == d_opts[st.selectbox("Deal:", list(d_opts.keys()))]), None) if d_opts else None
+        if sel:
             with c_inf:
                 with st.container(border=True):
                     c1, c2 = st.columns(2)
-                    with c1:
-                        st.markdown(f"### {sel_deal['name']}")
-                        st.markdown(f"<h1 style='color: #fff; margin-top: -10px;'>{sel_deal['price']}</h1>", unsafe_allow_html=True)
-                    with c2:
-                        st.write(f"👤 {sel_deal.get('contact', '-')}")
-                        st.write(f"📧 {sel_deal.get('email', '-')}")
-                        st.write(f"☎️ {sel_deal.get('phone', '-')}")
-                        if sel_deal.get('website'):
-                             st.markdown(f"🌐 [{sel_deal['website']}]({'https://' + sel_deal['website'] if not sel_deal['website'].startswith('http') else sel_deal['website']})")
-                    st.markdown("---")
-                    st.info(sel_deal['notes'] if sel_deal['notes'] else "Geen notities.")
+                    with c1: st.markdown(f"### {sel['name']}"); st.markdown(f"<h1 style='color:#fff;margin-top:-10px'>{sel['price']}</h1>", unsafe_allow_html=True)
+                    with c2: 
+                        st.write(f"👤 {sel.get('contact','-')}"); st.write(f"📧 {sel.get('email','-')}"); st.write(f"☎️ {sel.get('phone','-')}")
+                        if sel.get('website'): st.markdown(f"🌐 [{sel['website']}]({'https://'+sel['website'] if not sel['website'].startswith('http') else sel['website']})")
+                    st.markdown("---"); st.info(sel.get('notes') or "Geen notities.")
 
-# ==========================================
-# TAB 2: TAKENBEHEER PER KLANT
-# ==========================================
+# ================= TAB 2: TAKEN (EDITABLE) =================
 with tab_tasks:
     st.header("✅ Projectmanagement")
     
-    c_filter, c_new = st.columns([1, 2])
-    with c_filter:
+    # FILTER
+    c_filt, c_dummy = st.columns([1, 2])
+    with c_filt:
         klant_filter = st.selectbox("📂 Selecteer Project / Klant:", ["Alle Projecten"] + all_companies)
     
-    with st.expander(f"➕ Taak toevoegen voor {klant_filter if klant_filter != 'Alle Projecten' else 'een klant'}", expanded=False):
-        with st.form("new_task_form", clear_on_submit=True):
-            col_a, col_b = st.columns(2)
-            with col_a:
-                if klant_filter != "Alle Projecten":
-                    st.write(f"**Klant:** {klant_filter}")
-                    sel_klant = klant_filter
-                else:
-                    sel_klant = st.selectbox("Klant", all_companies)
-                t_naam = st.text_input("Wat moet er gebeuren?")
-                t_cat = st.selectbox("Categorie", ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"])
-            with col_b:
-                t_date = st.date_input("Deadline", date.today())
-                t_sub = st.text_area("Details / Subtaken")
+    # NIEUWE TAAK
+    with st.expander(f"➕ Taak toevoegen", expanded=False):
+        with st.form("new_task"):
+            ca, cb = st.columns(2)
+            with ca:
+                n_klant = klant_filter if klant_filter != "Alle Projecten" else st.selectbox("Klant", all_companies)
+                n_taak = st.text_input("Taak")
+                n_cat = st.selectbox("Categorie", ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"])
+            with cb:
+                n_date = st.date_input("Deadline", date.today())
+                n_prio = st.selectbox("Prioriteit", ["🔥 Hoog", "⏺️ Midden", "💤 Laag"])
+                n_note = st.text_area("Notities")
             
-            if st.form_submit_button("Project Taak Opslaan"):
-                add_task(sel_klant, t_naam, t_cat, t_date, t_sub)
-                st.success(f"Taak voor {sel_klant} toegevoegd!")
-                st.rerun()
+            if st.form_submit_button("Opslaan"):
+                add_task(n_klant, n_taak, n_cat, n_date, n_prio, n_note)
+                st.success("Opgeslagen!"); st.rerun()
 
+    # TAKEN LIJST
     all_tasks = load_tasks()
-    
-    if klant_filter != "Alle Projecten":
-        display_tasks = [t for t in all_tasks if t.get('Klant') == klant_filter]
-    else:
-        display_tasks = all_tasks
+    disp_tasks = [t for t in all_tasks if t.get('Klant') == klant_filter] if klant_filter != "Alle Projecten" else all_tasks
 
-    if not display_tasks:
-        st.info(f"Geen taken gevonden voor {klant_filter}.")
+    if not disp_tasks: st.info(f"Geen taken voor {klant_filter}.")
     else:
-        display_tasks.sort(key=lambda x: (x.get('Status') == 'TRUE', x.get('Deadline')))
+        # SORTEREN: 1. Openstaand, 2. Prioriteit (Hoog>Midden>Laag), 3. Datum
+        prio_map = {"🔥 Hoog": 1, "⏺️ Midden": 2, "💤 Laag": 3}
+        disp_tasks.sort(key=lambda x: (
+            str(x.get('Status')).upper() == 'TRUE', # Afgevinkt onderaan
+            prio_map.get(x.get('Prioriteit'), 2),   # Prio sortering
+            x.get('Deadline')                       # Datum sortering
+        ))
         
-        st.write(f"**{len(display_tasks)} taken voor {klant_filter}**")
+        st.write(f"**{len(disp_tasks)} taken**")
         
-        for task in display_tasks:
+        for task in disp_tasks:
             if not task.get('ID'): continue
-            
             is_done = str(task.get('Status')).upper() == 'TRUE'
             opacity = "0.5" if is_done else "1.0"
             strike = "text-decoration: line-through;" if is_done else ""
+            border_c = "#4CAF50" if is_done else "#2196F3"
             
+            # TAAK CONTAINER
             with st.container(border=True):
-                # AANGEPAST: Kolomindeling 0.5 voor check, 5.5 voor info, 3 voor metadata (datum/cat)
                 c_check, c_info, c_meta = st.columns([0.5, 5.5, 3])
                 
                 with c_check:
-                    check_val = st.checkbox("", value=is_done, key=f"chk_{task['ID']}")
-                    if check_val != is_done:
-                        toggle_task_status(task['ID'], str(task.get('Status')).upper())
-                        st.rerun()
+                    if st.checkbox("", value=is_done, key=f"chk_{task['ID']}") != is_done:
+                        toggle_task_status(task['ID'], str(task.get('Status')).upper()); st.rerun()
                 
                 with c_info:
-                    klant_label = f"<span style='color: #2196F3; font-weight:bold;'>{task.get('Klant')}</span> | " if klant_filter == "Alle Projecten" else ""
-                    st.markdown(f"<div style='opacity: {opacity}; {strike}'>{klant_label}<strong>{task['Taak']}</strong></div>", unsafe_allow_html=True)
-                    if task.get('Subtaken'):
-                        st.caption(f"📝 {task['Subtaken']}")
+                    klant_lbl = f"<span style='color:#2196F3;font-weight:bold'>{task.get('Klant')}</span> | " if klant_filter == "Alle Projecten" else ""
+                    st.markdown(f"<div style='opacity:{opacity};{strike}'>{klant_lbl}<strong>{task['Taak']}</strong></div>", unsafe_allow_html=True)
+                    if task.get('Notities'): st.caption(f"📝 {task['Notities']}")
                 
-                # AANGEPAST: Datum en Categorie groter en naast elkaar (Flexbox)
                 with c_meta:
+                    prio_color = "#ff4b4b" if "Hoog" in str(task.get('Prioriteit')) else "#ffa421" if "Midden" in str(task.get('Prioriteit')) else "#00c0f2"
                     st.markdown(f"""
-                    <div style='display: flex; gap: 15px; align-items: center; justify-content: flex-end; opacity: {opacity};'>
-                        <span style='font-size: 1.1rem; font-weight: 700; color: #eee;'>📅 {task['Deadline']}</span>
-                        <span style='background:#333; padding: 6px 12px; border-radius: 6px; font-size: 1rem; border: 1px solid #444;'>{task['Categorie']}</span>
+                    <div style='display:flex;gap:10px;align-items:center;justify-content:flex-end;opacity:{opacity}'>
+                        <span style='color:{prio_color};font-weight:bold;font-size:0.9em'>{task.get('Prioriteit', '⏺️ Midden')}</span>
+                        <span style='font-weight:700;color:#eee'>📅 {task['Deadline']}</span>
+                        <span style='background:#333;padding:4px 8px;border-radius:4px;font-size:0.8em;border:1px solid #444'>{task['Categorie']}</span>
                     </div>
                     """, unsafe_allow_html=True)
+                
+                # BEWERK FUNCTIE (UITKLAPBAAR)
+                with st.expander("✏️ Bewerk Taak / Voeg notitie toe"):
+                    with st.form(f"edit_{task['ID']}"):
+                        ec1, ec2 = st.columns(2)
+                        with ec1:
+                            e_klant = st.selectbox("Klant", all_companies, index=all_companies.index(task['Klant']) if task['Klant'] in all_companies else 0)
+                            e_taak = st.text_input("Taak", task['Taak'])
+                            e_cat = st.selectbox("Categorie", ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"], index=["Website Bouw", "Content", "Administratie", "Meeting", "Overig"].index(task['Categorie']) if task['Categorie'] in ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"] else 0)
+                        with ec2:
+                            d_val = datetime.strptime(task['Deadline'], "%Y-%m-%d").date() if task['Deadline'] else date.today()
+                            e_date = st.date_input("Deadline", d_val)
+                            p_idx = ["🔥 Hoog", "⏺️ Midden", "💤 Laag"].index(task.get('Prioriteit', "⏺️ Midden"))
+                            e_prio = st.selectbox("Prioriteit", ["🔥 Hoog", "⏺️ Midden", "💤 Laag"], index=p_idx)
+                        
+                        e_note = st.text_area("Notities & Opmerkingen", task.get('Notities', ''))
+                        
+                        if st.form_submit_button("💾 Wijzigingen Opslaan"):
+                            new_data = {
+                                'Klant': e_klant, 'Taak': e_taak, 'Categorie': e_cat,
+                                'Deadline': e_date, 'Prioriteit': e_prio, 'Notities': e_note
+                            }
+                            update_task_data(task['ID'], new_data)
+                            st.success("Opgeslagen!")
+                            st.rerun()
 
-        st.divider()
-        if st.button("🧹 Voltooide taken verwijderen uit lijst"):
-            delete_completed_tasks()
-            st.success("Opgeruimd!")
-            st.rerun()
+    st.divider()
+    if st.button("🧹 Voltooide taken verwijderen"):
+        delete_completed_tasks(); st.success("Opgeruimd!"); st.rerun()
