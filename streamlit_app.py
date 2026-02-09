@@ -78,7 +78,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. GOOGLE SHEETS VERBINDING ---
+# --- 3. GOOGLE SHEETS VERBINDING (ROBUUST GEMAAKT) ---
 @st.cache_resource
 def get_google_client():
     try:
@@ -89,20 +89,23 @@ def get_google_client():
         client = gspread.authorize(creds)
         return client
     except Exception as e:
-        st.error(f"Fout bij verbinden met Google: {e}")
         return None
 
 def get_sheet(sheet_name="Sheet1"):
     client = get_google_client()
     if client:
-        try: return client.open("MijnSalesCRM").worksheet(sheet_name)
-        except: st.error(f"Kan tabblad '{sheet_name}' niet vinden!"); return None
+        try: 
+            return client.open("MijnSalesCRM").worksheet(sheet_name)
+        except: 
+            # HIER IS DE FIX: Geen st.error meer, maar gewoon 'None' teruggeven
+            # De app snapt dan dat de sheet er niet is en gaat rustig verder.
+            return None
     return None
 
 # --- PIPELINE FUNCTIES ---
 def load_pipeline_data():
     sheet = get_sheet("Sheet1")
-    if not sheet: return None
+    if not sheet: return None # Stil falen als sheet er niet is
     try:
         records = sheet.get_all_records()
     except gspread.exceptions.APIError:
@@ -163,7 +166,7 @@ def load_tasks():
 
 def add_task(klant, taak, categorie, deadline, prioriteit, notities):
     sheet = get_sheet("Taken")
-    if not sheet: return
+    if not sheet: st.error("Maak eerst het tabblad 'Taken' aan in Google Sheets!"); return
     row = ["FALSE", klant, taak, categorie, str(deadline), prioriteit, notities, str(uuid.uuid4())]
     try: sheet.append_row(row)
     except: time.sleep(1); sheet.append_row(row)
@@ -208,13 +211,13 @@ def delete_completed_tasks():
 # --- UREN FUNCTIES ---
 def load_hours():
     sheet = get_sheet("Uren")
-    if not sheet: return []
+    if not sheet: return [] # Geen error, gewoon lege lijst teruggeven
     try: return [r for r in sheet.get_all_records() if r.get('ID')]
     except: return []
 
 def log_time(klant, datum, uren, omschrijving):
     sheet = get_sheet("Uren")
-    if not sheet: return
+    if not sheet: st.error("Maak eerst het tabblad 'Uren' aan in Google Sheets!"); return
     totaal = float(uren) * HOURLY_RATE
     row = [str(datum), klant, float(uren), omschrijving, HOURLY_RATE, totaal, str(uuid.uuid4())]
     try: sheet.append_row(row)
@@ -251,9 +254,10 @@ all_companies.sort()
 
 # --- APP LAYOUT ---
 st.title("🚀 RO Marketing CRM")
+# TABS DEFINITIE
 tab_dash, tab_pipeline, tab_tasks, tab_hours = st.tabs(["📈 Dashboard", "📊 Pipeline", "✅ Projecten & Taken", "⏱️ Uren & Tijd"])
 
-# ================= TAB 1: DASHBOARD (LIJNGRAFIEK AANPASSING) =================
+# ================= TAB 1: DASHBOARD =================
 with tab_dash:
     st.header("📈 Financieel Dashboard")
     
@@ -292,20 +296,23 @@ with tab_dash:
         
         st.divider()
         
-        # 4. GRAFIEK: OMZET PER MAAND (LIJN)
+        # 4. GRAFIEK
         st.subheader("📈 Omzetverloop per Maand")
         if not df.empty:
-            # We maken een nieuwe dataframe voor de grafiek
-            # We groeperen op 'Maand' en sommeren 'Totaal'
             chart_data = df.groupby('Maand')['Totaal'].sum()
-            
-            # Standaard line_chart
             st.line_chart(chart_data, color="#2196F3")
         else:
             st.info("Nog geen data voor de grafiek.")
             
     else:
-        st.info("Nog geen uren geschreven. Ga naar het tabblad 'Uren & Tijd' om te beginnen!")
+        st.info("💡 Tip: Maak een tabblad 'Uren' aan in Google Sheets en log je uren om hier grafieken te zien.")
+        
+        # Laat toch de Pipeline waarde zien, ook als er nog geen uren zijn
+        pipeline_value = 0.0
+        if 'leads_data' in st.session_state:
+            for lead in st.session_state['leads_data']['col3']: 
+                pipeline_value += parse_price(lead.get('price'))
+        st.metric("Totaal Deals Geland 🎉", f"€ {pipeline_value:,.2f}")
 
 # ================= TAB 2: PIPELINE =================
 with tab_pipeline:
