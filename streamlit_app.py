@@ -20,20 +20,23 @@ st.set_page_config(
 TASK_CATEGORIES = ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"]
 HOURLY_RATE = 30.0
 
-# --- 2. CSS STYLING ---
+# --- 2. CSS STYLING (RESPONSIVE FIX 📱) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
 
+    /* BASE STYLING */
     .stApp { font-family: 'Montserrat', sans-serif !important; }
     p, input, textarea, .stMarkdown, h1, h2, h3, h4, h5, h6, .stSelectbox, .stTextInput, .stDateInput, .stNumberInput { 
         font-family: 'Montserrat', sans-serif !important; 
     }
     
+    /* ICON SAVER */
     button, i, span[class^="material-symbols"] { font-family: inherit !important; }
     [data-testid="stSidebarCollapsedControl"] button,
     [data-testid="stSidebarExpandedControl"] button { font-family: "Source Sans Pro", sans-serif !important; }
 
+    /* HEADERS */
     h1, h2, h3, .stHeading, .st-emotion-cache-10trblm {
         font-family: 'Dela Gothic One', cursive !important;
         letter-spacing: 1px;
@@ -41,23 +44,23 @@ st.markdown("""
     }
 
     .stApp { background-color: #0E1117; }
-    .block-container { max_width: 100% !important; padding: 2rem; }
+    .block-container { max_width: 100% !important; padding: 1rem 2rem; }
     
     /* TABS */
-    .stTabs [data-baseweb="tab-list"] { gap: 20px; }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; overflow-x: auto; flex-wrap: nowrap; }
     .stTabs [data-baseweb="tab"] {
-        height: 50px; white-space: pre-wrap; background-color: #25262b;
+        height: 50px; white-space: nowrap; background-color: #25262b;
         border-radius: 5px 5px 0 0; gap: 1px; padding: 10px; color: white;
     }
     .stTabs [aria-selected="true"] { background-color: #2196F3 !important; color: white !important; }
 
     /* METRICS BOX */
     div[data-testid="metric-container"] {
-        background-color: #25262b; border: 1px solid #333; padding: 20px; border-radius: 10px; color: white;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        background-color: #25262b; border: 1px solid #333; padding: 15px; border-radius: 10px; color: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 10px;
     }
     
-    /* KANBAN */
+    /* KANBAN (Desktop Default) */
     div[class*="stSortable"] { display: flex; flex-direction: row; overflow-x: auto; gap: 15px; padding-bottom: 20px; }
     div[class*="stSortable"] > div {
         display: flex; flex-direction: column; flex: 0 0 auto; width: 300px;
@@ -70,6 +73,30 @@ st.markdown("""
     }
     div[class*="stSortable"] > div > div:hover {
         background-color: #363c4e !important; border-color: #64b5f6 !important; transform: translateY(-2px);
+    }
+
+    /* --- MOBILE RESPONSIVE TWEAKS (@media) --- */
+    @media (max-width: 768px) {
+        /* Minder padding aan de zijkanten */
+        .block-container { padding: 1rem 0.5rem !important; }
+        
+        /* Headers iets kleiner */
+        h1 { font-size: 1.8rem !important; }
+        h2 { font-size: 1.5rem !important; }
+        h3 { font-size: 1.2rem !important; }
+
+        /* Kanban bord: iets smallere kolommen zodat je meer ziet */
+        div[class*="stSortable"] > div { width: 260px !important; min-width: 260px !important; }
+        
+        /* Takenlijst: Flexbox wrapping voor datum/labels */
+        div[style*="display:flex;gap:10px"] {
+            flex-wrap: wrap !important;
+            justify-content: flex-start !important;
+            gap: 5px !important;
+        }
+        
+        /* Zorg dat kolommen in lijsten niet te smal worden (forceer wrap indien nodig) */
+        [data-testid="column"] { min-width: 100px !important; }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -330,7 +357,6 @@ with tab_pipeline:
             f_leads = all_leads if fil == "Alles" else st.session_state['leads_data'][next((k for k, n in cols if n == fil), 'col1')]
             d_opts = {f"{l['name']}": l['id'] for l in f_leads}
             
-            # --- HIER ZAT DE FOUT: NU MET UNIEKE KEY ---
             if d_opts:
                 sel_name = st.selectbox("Selecteer deal:", list(d_opts.keys()), key="pipeline_deal_selector")
                 sel_id = d_opts[sel_name]
@@ -386,7 +412,8 @@ with tab_tasks:
             opac = "0.5" if done else "1.0"
             strike = "text-decoration: line-through;" if done else ""
             with st.container(border=True):
-                c_chk, c_inf, c_met = st.columns([0.5, 5.5, 3])
+                # AANGEPAST VOOR MOBIEL: 0.5, 6, 2.5
+                c_chk, c_inf, c_met = st.columns([0.5, 6, 2.5])
                 with c_chk:
                     if st.checkbox("", value=done, key=f"chk_{t['ID']}") != done:
                         toggle_task_status(t['ID'], str(t.get('Status')).upper()); st.rerun()
@@ -398,7 +425,8 @@ with tab_tasks:
                     praw = t.get('Prioriteit', "⏺️ Midden")
                     if praw not in ["🔥 Hoog", "⏺️ Midden", "💤 Laag"]: praw = "⏺️ Midden"
                     pcol = "#ff4b4b" if "Hoog" in praw else "#ffa421" if "Midden" in praw else "#00c0f2"
-                    st.markdown(f"<div style='display:flex;gap:10px;align-items:center;justify-content:flex-end;opacity:{opac}'><span style='color:{pcol};font-weight:bold;font-size:0.9em'>{praw}</span><span style='font-weight:700;color:#eee'>📅 {t['Deadline']}</span><span style='background:#333;padding:4px 8px;border-radius:4px;font-size:0.8em;border:1px solid #444'>{t['Categorie']}</span></div>", unsafe_allow_html=True)
+                    # CSS FLEXBOX VOOR RESPONSIVENESS
+                    st.markdown(f"<div style='display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;opacity:{opac}'><span style='color:{pcol};font-weight:bold;font-size:0.9em'>{praw}</span><span style='font-weight:700;color:#eee'>📅 {t['Deadline']}</span><span style='background:#333;padding:4px 8px;border-radius:4px;font-size:0.8em;border:1px solid #444'>{t['Categorie']}</span></div>", unsafe_allow_html=True)
                 with st.expander("✏️ Bewerk"):
                     with st.form(f"edit_{t['ID']}"):
                         e1, e2 = st.columns(2)
