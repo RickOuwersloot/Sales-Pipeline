@@ -53,11 +53,7 @@ st.markdown("""
 
     /* METRICS BOX */
     div[data-testid="metric-container"] {
-        background-color: #25262b;
-        border: 1px solid #333;
-        padding: 20px;
-        border-radius: 10px;
-        color: white;
+        background-color: #25262b; border: 1px solid #333; padding: 20px; border-radius: 10px; color: white;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
@@ -78,7 +74,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. GOOGLE SHEETS VERBINDING (ROBUUST GEMAAKT) ---
+# --- 3. GOOGLE SHEETS VERBINDING ---
 @st.cache_resource
 def get_google_client():
     try:
@@ -94,24 +90,15 @@ def get_google_client():
 def get_sheet(sheet_name="Sheet1"):
     client = get_google_client()
     if client:
-        try: 
-            return client.open("MijnSalesCRM").worksheet(sheet_name)
-        except: 
-            # HIER IS DE FIX: Geen st.error meer, maar gewoon 'None' teruggeven
-            # De app snapt dan dat de sheet er niet is en gaat rustig verder.
-            return None
+        try: return client.open("MijnSalesCRM").worksheet(sheet_name)
+        except: return None
     return None
 
 # --- PIPELINE FUNCTIES ---
 def load_pipeline_data():
     sheet = get_sheet("Sheet1")
-    if not sheet: return None # Stil falen als sheet er niet is
-    try:
-        records = sheet.get_all_records()
-    except gspread.exceptions.APIError:
-        time.sleep(2)
-        try: records = sheet.get_all_records()
-        except: return None
+    if not sheet: return None
+    try: records = sheet.get_all_records()
     except: return None
 
     data_structure = {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
@@ -166,7 +153,7 @@ def load_tasks():
 
 def add_task(klant, taak, categorie, deadline, prioriteit, notities):
     sheet = get_sheet("Taken")
-    if not sheet: st.error("Maak eerst het tabblad 'Taken' aan in Google Sheets!"); return
+    if not sheet: st.error("Maak tabblad 'Taken' aan!"); return
     row = ["FALSE", klant, taak, categorie, str(deadline), prioriteit, notities, str(uuid.uuid4())]
     try: sheet.append_row(row)
     except: time.sleep(1); sheet.append_row(row)
@@ -211,13 +198,13 @@ def delete_completed_tasks():
 # --- UREN FUNCTIES ---
 def load_hours():
     sheet = get_sheet("Uren")
-    if not sheet: return [] # Geen error, gewoon lege lijst teruggeven
+    if not sheet: return []
     try: return [r for r in sheet.get_all_records() if r.get('ID')]
     except: return []
 
 def log_time(klant, datum, uren, omschrijving):
     sheet = get_sheet("Uren")
-    if not sheet: st.error("Maak eerst het tabblad 'Uren' aan in Google Sheets!"); return
+    if not sheet: st.error("Maak tabblad 'Uren' aan!"); return
     totaal = float(uren) * HOURLY_RATE
     row = [str(datum), klant, float(uren), omschrijving, HOURLY_RATE, totaal, str(uuid.uuid4())]
     try: sheet.append_row(row)
@@ -233,11 +220,10 @@ def delete_hour_entry(entry_id):
             rows.append([r['Datum'], r['Klant'], r['Uren'], r['Omschrijving'], r['Tarief'], r['Totaal'], r['ID']])
     sheet.clear(); sheet.update(rows)
 
-# --- HELPER FUNCTIES VOOR DASHBOARD ---
+# --- HELPER ---
 def parse_price(price_str):
     if not price_str: return 0.0
-    clean = str(price_str).replace('€', '').replace('.', '').replace(',', '.').strip()
-    clean = clean.split(' ')[0]
+    clean = str(price_str).replace('€', '').replace('.', '').replace(',', '.').strip().split(' ')[0]
     try: return float(clean)
     except: return 0.0
 
@@ -254,65 +240,40 @@ all_companies.sort()
 
 # --- APP LAYOUT ---
 st.title("🚀 RO Marketing CRM")
-# TABS DEFINITIE
 tab_dash, tab_pipeline, tab_tasks, tab_hours = st.tabs(["📈 Dashboard", "📊 Pipeline", "✅ Projecten & Taken", "⏱️ Uren & Tijd"])
 
 # ================= TAB 1: DASHBOARD =================
 with tab_dash:
     st.header("📈 Financieel Dashboard")
-    
     all_hours = load_hours()
-    
     if all_hours:
         df = pd.DataFrame(all_hours)
         df['Totaal'] = pd.to_numeric(df['Totaal'], errors='coerce').fillna(0)
         df['Uren'] = pd.to_numeric(df['Uren'], errors='coerce').fillna(0)
         df['Datum'] = pd.to_datetime(df['Datum'], errors='coerce')
-        
         df['Maand'] = df['Datum'].dt.strftime('%Y-%m')
         
-        # 1. FILTERS
         col_fil, col_empty = st.columns([1, 2])
         with col_fil:
-            current_month = datetime.now().strftime('%Y-%m')
-            available_months = sorted(df['Maand'].unique().tolist(), reverse=True)
-            if current_month not in available_months: available_months.insert(0, current_month)
-            
-            selected_month = st.selectbox("📅 Selecteer Maand:", available_months)
+            cur_m = datetime.now().strftime('%Y-%m')
+            months = sorted(df['Maand'].unique().tolist(), reverse=True)
+            if cur_m not in months: months.insert(0, cur_m)
+            sel_month = st.selectbox("📅 Maand:", months, key="dash_month_filter")
         
-        # 2. METRICS
-        monthly_data = df[df['Maand'] == selected_month]
-        month_revenue = monthly_data['Totaal'].sum()
-        month_hours = monthly_data['Uren'].sum()
+        m_data = df[df['Maand'] == sel_month]
+        pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col3']])
         
-        pipeline_value = 0.0
-        for lead in st.session_state['leads_data']['col3']: # col3 = Geland
-            pipeline_value += parse_price(lead.get('price'))
-            
         m1, m2, m3 = st.columns(3)
-        m1.metric(f"Omzet Uren ({selected_month})", f"€ {month_revenue:,.2f}")
-        m2.metric(f"Gewerkte Uren ({selected_month})", f"{month_hours:.1f} uur")
-        m3.metric("Totaal Deals Geland 🎉", f"€ {pipeline_value:,.2f}")
+        m1.metric(f"Omzet Uren ({sel_month})", f"€ {m_data['Totaal'].sum():,.2f}")
+        m2.metric(f"Gewerkte Uren ({sel_month})", f"{m_data['Uren'].sum():.1f} uur")
+        m3.metric("Totaal Deals Geland 🎉", f"€ {pipe_val:,.2f}")
         
-        st.divider()
-        
-        # 4. GRAFIEK
-        st.subheader("📈 Omzetverloop per Maand")
-        if not df.empty:
-            chart_data = df.groupby('Maand')['Totaal'].sum()
-            st.line_chart(chart_data, color="#2196F3")
-        else:
-            st.info("Nog geen data voor de grafiek.")
-            
+        st.divider(); st.subheader("📈 Omzetverloop per Maand")
+        if not df.empty: st.line_chart(df.groupby('Maand')['Totaal'].sum(), color="#2196F3")
     else:
-        st.info("💡 Tip: Maak een tabblad 'Uren' aan in Google Sheets en log je uren om hier grafieken te zien.")
-        
-        # Laat toch de Pipeline waarde zien, ook als er nog geen uren zijn
-        pipeline_value = 0.0
-        if 'leads_data' in st.session_state:
-            for lead in st.session_state['leads_data']['col3']: 
-                pipeline_value += parse_price(lead.get('price'))
-        st.metric("Totaal Deals Geland 🎉", f"€ {pipeline_value:,.2f}")
+        st.info("Nog geen uren geschreven.")
+        pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col3']])
+        st.metric("Totaal Deals Geland 🎉", f"€ {pipe_val:,.2f}")
 
 # ================= TAB 2: PIPELINE =================
 with tab_pipeline:
@@ -335,11 +296,11 @@ with tab_pipeline:
                         st.session_state['leads_data']['col1'].insert(0, ni)
                         save_pipeline_data(st.session_state['leads_data'])
                         st.session_state['board_key'] += 1; st.rerun()
-        if st.button("🗑️ Prullenbak Legen"):
+        if st.button("🗑️ Prullenbak Legen", key="empty_trash"):
             st.session_state['leads_data']['trash'] = []; save_pipeline_data(st.session_state['leads_data']); st.session_state['board_key'] += 1; st.rerun()
         c1, c2 = st.columns(2)
-        if c1.button("🔄"): st.cache_resource.clear(); del st.session_state['leads_data']; st.rerun()
-        if c2.button("🛠️"): fix_missing_ids()
+        if c1.button("🔄", key="reload_data"): st.cache_resource.clear(); del st.session_state['leads_data']; st.rerun()
+        if c2.button("🛠️", key="fix_ids"): fix_missing_ids()
 
     cols = [('col1', 'Te benaderen'), ('col2', 'Opgevolgd'), ('col3', 'Geland 🎉'), ('col4', 'Geen interesse'), ('trash', 'Prullenbak 🗑️')]
     k_data = []
@@ -365,10 +326,19 @@ with tab_pipeline:
     if len(all_leads) > 0:
         c_sel, c_inf = st.columns([1, 2])
         with c_sel:
-            fil = st.selectbox("🔍 Filter:", ["Alles"] + [n for _, n in cols])
+            fil = st.selectbox("🔍 Filter:", ["Alles"] + [n for _, n in cols], key="pipeline_filter_phase")
             f_leads = all_leads if fil == "Alles" else st.session_state['leads_data'][next((k for k, n in cols if n == fil), 'col1')]
             d_opts = {f"{l['name']}": l['id'] for l in f_leads}
-            sel = next((l for l in all_leads if l['id'] == d_opts[st.selectbox("Deal:", list(d_opts.keys()))]), None) if d_opts else None
+            
+            # --- HIER ZAT DE FOUT: NU MET UNIEKE KEY ---
+            if d_opts:
+                sel_name = st.selectbox("Selecteer deal:", list(d_opts.keys()), key="pipeline_deal_selector")
+                sel_id = d_opts[sel_name]
+                sel = next((l for l in all_leads if l['id'] == sel_id), None)
+            else:
+                sel = None
+                st.info("Geen deals gevonden.")
+
         if sel:
             with c_inf:
                 with st.container(border=True):
@@ -382,131 +352,105 @@ with tab_pipeline:
 # ================= TAB 3: TAKEN =================
 with tab_tasks:
     st.header("✅ Projectmanagement")
-    
     c_filt1, c_filt2 = st.columns(2)
-    with c_filt1:
-        klant_filter = st.selectbox("📂 Filter op Klant:", ["Alle Projecten"] + all_companies)
-    with c_filt2:
-        cat_filter = st.selectbox("🏷️ Filter op Categorie:", ["Alle Categorieën"] + TASK_CATEGORIES)
+    with c_filt1: k_filt = st.selectbox("📂 Filter op Klant:", ["Alle Projecten"] + all_companies, key="task_filter_client")
+    with c_filt2: c_filt = st.selectbox("🏷️ Filter op Categorie:", ["Alle Categorieën"] + TASK_CATEGORIES, key="task_filter_cat")
     
     with st.expander(f"➕ Taak toevoegen", expanded=False):
         with st.form("new_task"):
             ca, cb = st.columns(2)
             with ca:
-                n_klant = klant_filter if klant_filter != "Alle Projecten" else st.selectbox("Klant", all_companies)
+                n_klant = k_filt if k_filt != "Alle Projecten" else st.selectbox("Klant", all_companies, key="new_task_client")
                 n_taak = st.text_input("Taak")
-                n_cat = st.selectbox("Categorie", TASK_CATEGORIES)
+                n_cat = st.selectbox("Categorie", TASK_CATEGORIES, key="new_task_cat")
             with cb:
                 n_date = st.date_input("Deadline", date.today())
-                n_prio = st.selectbox("Prioriteit", ["🔥 Hoog", "⏺️ Midden", "💤 Laag"])
+                n_prio = st.selectbox("Prioriteit", ["🔥 Hoog", "⏺️ Midden", "💤 Laag"], key="new_task_prio")
                 n_note = st.text_area("Notities")
-            
             if st.form_submit_button("Opslaan"):
-                add_task(n_klant, n_taak, n_cat, n_date, n_prio, n_note)
-                st.success("Opgeslagen!"); st.rerun()
+                add_task(n_klant, n_taak, n_cat, n_date, n_prio, n_note); st.success("Opgeslagen!"); st.rerun()
 
     all_tasks = load_tasks()
-    disp_tasks = all_tasks
-    if klant_filter != "Alle Projecten": disp_tasks = [t for t in disp_tasks if t.get('Klant') == klant_filter]
-    if cat_filter != "Alle Categorieën": disp_tasks = [t for t in disp_tasks if t.get('Categorie') == cat_filter]
+    disp = all_tasks
+    if k_filt != "Alle Projecten": disp = [t for t in disp if t.get('Klant') == k_filt]
+    if c_filt != "Alle Categorieën": disp = [t for t in disp if t.get('Categorie') == c_filt]
 
-    if not disp_tasks: st.info(f"Geen taken gevonden.")
+    if not disp: st.info(f"Geen taken gevonden.")
     else:
-        prio_map = {"🔥 Hoog": 1, "⏺️ Midden": 2, "💤 Laag": 3}
-        disp_tasks.sort(key=lambda x: (str(x.get('Status')).upper() == 'TRUE', prio_map.get(x.get('Prioriteit'), 2), x.get('Deadline')))
-        
-        st.write(f"**{len(disp_tasks)} taken**")
-        for task in disp_tasks:
-            if not task.get('ID'): continue
-            is_done = str(task.get('Status')).upper() == 'TRUE'
-            opacity = "0.5" if is_done else "1.0"
-            strike = "text-decoration: line-through;" if is_done else ""
-            
+        p_map = {"🔥 Hoog": 1, "⏺️ Midden": 2, "💤 Laag": 3}
+        disp.sort(key=lambda x: (str(x.get('Status')).upper() == 'TRUE', p_map.get(x.get('Prioriteit'), 2), x.get('Deadline')))
+        st.write(f"**{len(disp)} taken**")
+        for t in disp:
+            if not t.get('ID'): continue
+            done = str(t.get('Status')).upper() == 'TRUE'
+            opac = "0.5" if done else "1.0"
+            strike = "text-decoration: line-through;" if done else ""
             with st.container(border=True):
-                c_check, c_info, c_meta = st.columns([0.5, 5.5, 3])
-                with c_check:
-                    if st.checkbox("", value=is_done, key=f"chk_{task['ID']}") != is_done:
-                        toggle_task_status(task['ID'], str(task.get('Status')).upper()); st.rerun()
-                with c_info:
-                    klant_lbl = f"<span style='color:#2196F3;font-weight:bold'>{task.get('Klant')}</span> | " if klant_filter == "Alle Projecten" else ""
-                    st.markdown(f"<div style='opacity:{opacity};{strike}'>{klant_lbl}<strong>{task['Taak']}</strong></div>", unsafe_allow_html=True)
-                    if task.get('Notities'): st.caption(f"📝 {task['Notities']}")
-                with c_meta:
-                    prio_raw = task.get('Prioriteit', "⏺️ Midden")
-                    if prio_raw not in ["🔥 Hoog", "⏺️ Midden", "💤 Laag"]: prio_raw = "⏺️ Midden"
-                    prio_color = "#ff4b4b" if "Hoog" in prio_raw else "#ffa421" if "Midden" in prio_raw else "#00c0f2"
-                    st.markdown(f"<div style='display:flex;gap:10px;align-items:center;justify-content:flex-end;opacity:{opacity}'><span style='color:{prio_color};font-weight:bold;font-size:0.9em'>{prio_raw}</span><span style='font-weight:700;color:#eee'>📅 {task['Deadline']}</span><span style='background:#333;padding:4px 8px;border-radius:4px;font-size:0.8em;border:1px solid #444'>{task['Categorie']}</span></div>", unsafe_allow_html=True)
-                
+                c_chk, c_inf, c_met = st.columns([0.5, 5.5, 3])
+                with c_chk:
+                    if st.checkbox("", value=done, key=f"chk_{t['ID']}") != done:
+                        toggle_task_status(t['ID'], str(t.get('Status')).upper()); st.rerun()
+                with c_inf:
+                    kl = f"<span style='color:#2196F3;font-weight:bold'>{t.get('Klant')}</span> | " if k_filt == "Alle Projecten" else ""
+                    st.markdown(f"<div style='opacity:{opac};{strike}'>{kl}<strong>{t['Taak']}</strong></div>", unsafe_allow_html=True)
+                    if t.get('Notities'): st.caption(f"📝 {t['Notities']}")
+                with c_met:
+                    praw = t.get('Prioriteit', "⏺️ Midden")
+                    if praw not in ["🔥 Hoog", "⏺️ Midden", "💤 Laag"]: praw = "⏺️ Midden"
+                    pcol = "#ff4b4b" if "Hoog" in praw else "#ffa421" if "Midden" in praw else "#00c0f2"
+                    st.markdown(f"<div style='display:flex;gap:10px;align-items:center;justify-content:flex-end;opacity:{opac}'><span style='color:{pcol};font-weight:bold;font-size:0.9em'>{praw}</span><span style='font-weight:700;color:#eee'>📅 {t['Deadline']}</span><span style='background:#333;padding:4px 8px;border-radius:4px;font-size:0.8em;border:1px solid #444'>{t['Categorie']}</span></div>", unsafe_allow_html=True)
                 with st.expander("✏️ Bewerk"):
-                    with st.form(f"edit_{task['ID']}"):
-                        ec1, ec2 = st.columns(2)
-                        with ec1:
-                            e_klant = st.selectbox("Klant", all_companies, index=all_companies.index(task['Klant']) if task['Klant'] in all_companies else 0)
-                            e_taak = st.text_input("Taak", task['Taak'])
-                            e_cat = st.selectbox("Categorie", TASK_CATEGORIES, index=TASK_CATEGORIES.index(task['Categorie']) if task['Categorie'] in TASK_CATEGORIES else 0)
-                        with ec2:
-                            d_val = datetime.strptime(task['Deadline'], "%Y-%m-%d").date() if task['Deadline'] else date.today()
-                            e_date = st.date_input("Deadline", d_val)
-                            p_safe = task.get('Prioriteit', "⏺️ Midden"); 
-                            if p_safe not in ["🔥 Hoog", "⏺️ Midden", "💤 Laag"]: p_safe = "⏺️ Midden"
-                            e_prio = st.selectbox("Prioriteit", ["🔥 Hoog", "⏺️ Midden", "💤 Laag"], index=["🔥 Hoog", "⏺️ Midden", "💤 Laag"].index(p_safe))
-                        e_note = st.text_area("Notities", task.get('Notities', ''))
+                    with st.form(f"edit_{t['ID']}"):
+                        e1, e2 = st.columns(2)
+                        with e1:
+                            ek = st.selectbox("Klant", all_companies, index=all_companies.index(t['Klant']) if t['Klant'] in all_companies else 0, key=f"ek_{t['ID']}")
+                            et = st.text_input("Taak", t['Taak'], key=f"et_{t['ID']}")
+                            ec = st.selectbox("Categorie", TASK_CATEGORIES, index=TASK_CATEGORIES.index(t['Categorie']) if t['Categorie'] in TASK_CATEGORIES else 0, key=f"ec_{t['ID']}")
+                        with e2:
+                            dv = datetime.strptime(t['Deadline'], "%Y-%m-%d").date() if t['Deadline'] else date.today()
+                            ed = st.date_input("Deadline", dv, key=f"ed_{t['ID']}")
+                            ps = t.get('Prioriteit', "⏺️ Midden")
+                            if ps not in ["🔥 Hoog", "⏺️ Midden", "💤 Laag"]: ps = "⏺️ Midden"
+                            ep = st.selectbox("Prioriteit", ["🔥 Hoog", "⏺️ Midden", "💤 Laag"], index=["🔥 Hoog", "⏺️ Midden", "💤 Laag"].index(ps), key=f"ep_{t['ID']}")
+                        en = st.text_area("Notities", t.get('Notities', ''), key=f"en_{t['ID']}")
                         if st.form_submit_button("Opslaan"):
-                            new_data = {'Klant': e_klant, 'Taak': e_taak, 'Categorie': e_cat, 'Deadline': e_date, 'Prioriteit': e_prio, 'Notities': e_note}
-                            update_task_data(task['ID'], new_data); st.success("Opgeslagen!"); st.rerun()
-
+                            new_d = {'Klant': ek, 'Taak': et, 'Categorie': ec, 'Deadline': ed, 'Prioriteit': ep, 'Notities': en}
+                            update_task_data(t['ID'], new_d); st.success("Opgeslagen!"); st.rerun()
     st.divider()
-    if st.button("🧹 Voltooide taken verwijderen"):
+    if st.button("🧹 Voltooide taken verwijderen", key="del_completed_tasks"):
         delete_completed_tasks(); st.success("Opgeruimd!"); st.rerun()
 
 # ================= TAB 4: UREN =================
 with tab_hours:
     st.header("⏱️ Urenregistratie")
     st.markdown(f"**Vast Tarief:** €{HOURLY_RATE} / uur")
-    
     with st.container(border=True):
         st.subheader("✍️ Tijd Schrijven")
         with st.form("log_time"):
-            hc1, hc2, hc3 = st.columns([2, 1, 2])
-            with hc1:
-                h_klant = st.selectbox("Klant", all_companies)
-                h_datum = st.date_input("Datum", date.today())
-            with hc2:
-                h_uren = st.number_input("Uren", min_value=0.0, step=0.25, format="%.2f")
-            with hc3:
-                h_desc = st.text_input("Omschrijving (Wat heb je gedaan?)")
-                submit_hours = st.form_submit_button("⏱️ Log Tijd", use_container_width=True)
-            
-            if submit_hours:
-                if h_uren > 0:
-                    log_time(h_klant, h_datum, h_uren, h_desc)
-                    st.success(f"{h_uren} uur geschreven op {h_klant}!")
-                    st.rerun()
-                else: st.error("Vul een aantal uren in!")
-
+            h1, h2, h3 = st.columns([2, 1, 2])
+            with h1: hk = st.selectbox("Klant", all_companies, key="hour_client"); hd = st.date_input("Datum", date.today(), key="hour_date")
+            with h2: hu = st.number_input("Uren", min_value=0.0, step=0.25, format="%.2f", key="hour_amount")
+            with h3: hdc = st.text_input("Omschrijving", key="hour_desc"); sub_h = st.form_submit_button("⏱️ Log Tijd", use_container_width=True)
+            if sub_h:
+                if hu > 0: log_time(hk, hd, hu, hdc); st.success(f"{hu} uur geschreven!"); st.rerun()
+                else: st.error("Vul uren in!")
     st.divider()
-    h_filter = st.selectbox("🔍 Filter overzicht op klant:", ["Alle Klanten"] + all_companies)
-    all_hours = load_hours()
-    filtered_hours = [h for h in all_hours if h.get('Klant') == h_filter] if h_filter != "Alle Klanten" else all_hours
-
-    total_hours = sum([float(h.get('Uren', 0)) for h in filtered_hours])
-    total_money = sum([float(h.get('Totaal', 0)) for h in filtered_hours])
-
+    hf = st.selectbox("🔍 Filter overzicht op klant:", ["Alle Klanten"] + all_companies, key="hour_overview_filter")
+    ah = load_hours()
+    fh = [h for h in ah if h.get('Klant') == hf] if hf != "Alle Klanten" else ah
+    th = sum([float(h.get('Uren', 0)) for h in fh])
+    tm = sum([float(h.get('Totaal', 0)) for h in fh])
     m1, m2 = st.columns(2)
-    m1.metric("Totaal Uren", f"{total_hours:.2f} uur")
-    m2.metric("Totale Waarde", f"€ {total_money:,.2f}")
-
-    if filtered_hours:
+    m1.metric("Totaal Uren", f"{th:.2f} uur")
+    m2.metric("Totale Waarde", f"€ {tm:,.2f}")
+    if fh:
         st.markdown("### 📜 Logboek")
-        for entry in reversed(filtered_hours):
+        for e in reversed(fh):
             with st.container(border=True):
-                col_a, col_b, col_c, col_d = st.columns([1.5, 4, 1.5, 1])
-                with col_a:
-                    st.caption(entry['Datum'])
-                    st.write(f"**{entry['Klant']}**")
-                with col_b: st.write(entry['Omschrijving'])
-                with col_c: st.markdown(f"**{entry['Uren']}u** (€{entry['Totaal']})")
-                with col_d:
-                    if st.button("🗑️", key=f"del_h_{entry['ID']}"):
-                        delete_hour_entry(entry['ID']); st.rerun()
-    else: st.info("Nog geen uren geschreven voor deze selectie.")
+                ca, cb, cc, cd = st.columns([1.5, 4, 1.5, 1])
+                with ca: st.caption(e['Datum']); st.write(f"**{e['Klant']}**")
+                with cb: st.write(e['Omschrijving'])
+                with cc: st.markdown(f"**{e['Uren']}u** (€{e['Totaal']})")
+                with cd:
+                    if st.button("🗑️", key=f"del_h_{e['ID']}"): delete_hour_entry(e['ID']); st.rerun()
+    else: st.info("Nog geen uren geschreven.")
