@@ -125,19 +125,32 @@ def get_sheet(sheet_name="Sheet1"):
         except: return None
     return None
 
+# --- NIEUW: ROBUUSTE FETCH FUNCTIE ---
+# Dit zorgt ervoor dat de app niet crasht als Google even hapert
+def robust_get_all_records(sheet):
+    """Probeert 3 keer data op te halen voordat hij opgeeft."""
+    if not sheet: return []
+    for attempt in range(3):
+        try:
+            return sheet.get_all_records()
+        except Exception:
+            time.sleep(1) # Wacht 1 seconde en probeer opnieuw
+    return []
+
 # --- PIPELINE FUNCTIES ---
 def load_pipeline_data():
     sheet = get_sheet("Sheet1")
     if not sheet: return None
-    try: records = sheet.get_all_records()
-    except: return None
+    
+    # Gebruik de robuuste functie
+    records = robust_get_all_records(sheet)
+    if not records: return None
 
     data_structure = {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
     status_map = {'Te benaderen': 'col1', 'Opgevolgd': 'col2', 'Geland': 'col3', 'Geen interesse': 'col4', 'Prullenbak': 'trash'}
     for row in records:
         if row.get('Bedrijf'):
             raw_id = str(row.get('ID', '')).strip()
-            # Check onderhoud kolom
             has_maint = str(row.get('Onderhoud', '')).upper() == 'TRUE'
             
             lead = {
@@ -209,8 +222,9 @@ def fix_missing_ids():
 def load_tasks():
     sheet = get_sheet("Taken")
     if not sheet: return []
-    try: return [r for r in sheet.get_all_records() if r.get('ID')]
-    except: return []
+    # Gebruik de robuuste functie
+    records = robust_get_all_records(sheet)
+    return [r for r in records if r.get('ID')]
 
 def add_task(klant, taak, categorie, deadline, prioriteit, notities):
     sheet = get_sheet("Taken")
@@ -260,8 +274,9 @@ def delete_completed_tasks():
 def load_hours():
     sheet = get_sheet("Uren")
     if not sheet: return []
-    try: return [r for r in sheet.get_all_records() if r.get('ID')]
-    except: return []
+    # Gebruik de robuuste functie
+    records = robust_get_all_records(sheet)
+    return [r for r in records if r.get('ID')]
 
 def log_time(klant, datum, uren, omschrijving):
     sheet = get_sheet("Uren")
@@ -303,7 +318,7 @@ all_companies.sort()
 st.title("🚀 RO Marketing CRM")
 tab_dash, tab_pipeline, tab_tasks, tab_hours = st.tabs(["📈 Dashboard", "📊 Pipeline", "✅ Projecten & Taken", "⏱️ Uren & Tijd"])
 
-# ================= TAB 1: DASHBOARD (SCROLLBARE LIJST 🔧) =================
+# ================= TAB 1: DASHBOARD =================
 with tab_dash:
     st.header("📈 Financieel Dashboard")
     all_hours = load_hours()
@@ -346,10 +361,9 @@ with tab_dash:
                         maintenance_clients.append(lead['name'])
             
             if maintenance_clients:
-                # SCROLLBARE CONTAINER VOOR ALS HET ER VEEL ZIJN
+                # Scrollbare container, klein en grijs
                 with st.container(height=300, border=True):
                     for client in maintenance_clients:
-                        # Klein en grijs, zoals gevraagd
                         st.markdown(f"<div style='font-size: 0.9em; color: #aaa; padding: 4px 0; border-bottom: 1px solid #333;'>🔧 {client}</div>", unsafe_allow_html=True)
             else:
                 st.caption("Geen contracten.")
@@ -446,7 +460,6 @@ with tab_pipeline:
 
             with c_inf:
                 with st.container(border=True):
-                    
                     if st.session_state['edit_mode']:
                         st.subheader(f"✏️ Bewerk: {sel['name']}")
                         with st.form(key=f"edit_form_{sel['id']}"):
