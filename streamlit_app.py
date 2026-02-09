@@ -125,7 +125,7 @@ def get_sheet(sheet_name="Sheet1"):
         except: return None
     return None
 
-# --- PIPELINE FUNCTIES (AANGEPAST VOOR 2 LINKS) ---
+# --- PIPELINE FUNCTIES ---
 def load_pipeline_data():
     sheet = get_sheet("Sheet1")
     if not sheet: return None
@@ -144,8 +144,8 @@ def load_pipeline_data():
                 'contact': row.get('Contact'), 
                 'email': row.get('Email'),
                 'phone': row.get('Telefoon'), 
-                'website': row.get('Website'),        # De "echte" website
-                'project_map': row.get('Projectmap'), # De Google Drive link
+                'website': row.get('Website'),        
+                'project_map': row.get('Projectmap'), 
                 'notes': row.get('Notities')
             }
             col_key = status_map.get(row.get('Status', 'Te benaderen'), 'col1')
@@ -155,7 +155,6 @@ def load_pipeline_data():
 def save_pipeline_data(leads_data):
     sheet = get_sheet("Sheet1")
     if not sheet: return
-    # HEADER UPDATE: Projectmap toegevoegd
     rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'ID']]
     col_map = {'col1': 'Te benaderen', 'col2': 'Opgevolgd', 'col3': 'Geland', 'col4': 'Geen interesse', 'trash': 'Prullenbak'}
     for col_key, items in leads_data.items():
@@ -169,12 +168,25 @@ def save_pipeline_data(leads_data):
     try: sheet.clear(); sheet.update(rows)
     except: time.sleep(2); sheet.clear(); sheet.update(rows)
 
+def update_single_lead(updated_lead):
+    """Zoekt de lead op in session_state en update hem."""
+    found = False
+    for col_key, leads in st.session_state['leads_data'].items():
+        for i, lead in enumerate(leads):
+            if lead['id'] == updated_lead['id']:
+                st.session_state['leads_data'][col_key][i] = updated_lead
+                found = True
+                break
+        if found: break
+    
+    if found:
+        save_pipeline_data(st.session_state['leads_data'])
+
 def fix_missing_ids():
     sheet = get_sheet("Sheet1")
     if not sheet: return
     try: records = sheet.get_all_records()
     except: return
-    # HEADER UPDATE
     rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'ID']]
     seen = set(); change = False
     for r in records:
@@ -332,19 +344,13 @@ with tab_pipeline:
                 cont = st.text_input("Contact")
                 mail = st.text_input("Email")
                 tel = st.text_input("Tel")
-                # NU TWEE VELDEN
-                web = st.text_input("Website URL")
-                proj = st.text_input("Link naar Projectmap (Drive)") 
+                web = st.text_input("Link naar Projectmap (URL)") 
                 pri = st.text_input("€")
                 not_ = st.text_area("Note")
                 if st.form_submit_button("Toevoegen"):
                     if not comp: st.error("Naam!")
                     else:
-                        ni = {
-                            'id': str(uuid.uuid4()), 'name': comp, 'contact': cont, 
-                            'email': mail, 'phone': tel, 'website': web, 
-                            'project_map': proj, 'price': pri, 'notes': not_
-                        }
+                        ni = {'id': str(uuid.uuid4()), 'name': comp, 'contact': cont, 'email': mail, 'phone': tel, 'project_url': web, 'price': pri, 'notes': not_}
                         st.session_state['leads_data']['col1'].insert(0, ni)
                         save_pipeline_data(st.session_state['leads_data'])
                         st.session_state['board_key'] += 1; st.rerun()
@@ -387,29 +393,55 @@ with tab_pipeline:
                 sel_id = d_opts[sel_name]
                 sel = next((l for l in all_leads if l['id'] == sel_id), None)
             else:
-                sel = None
-                st.info("Geen deals gevonden.")
+                sel = None; st.info("Geen deals gevonden.")
 
+        # --- AANGEPAST: EDIT FORMULIER ---
         if sel:
             with c_inf:
                 with st.container(border=True):
-                    c1, c2 = st.columns(2)
-                    with c1: st.markdown(f"### {sel['name']}"); st.markdown(f"<h1 style='color:#fff;margin-top:-10px'>{sel['price']}</h1>", unsafe_allow_html=True)
-                    with c2: 
-                        st.write(f"👤 {sel.get('contact','-')}"); st.write(f"📧 {sel.get('email','-')}"); st.write(f"☎️ {sel.get('phone','-')}")
+                    st.subheader(f"✏️ Bewerk: {sel['name']}")
+                    
+                    with st.form(key=f"edit_deal_form_{sel['id']}"):
+                        # De input velden met de huidige waarden als default
+                        ec1, ec2 = st.columns(2)
+                        with ec1:
+                            u_name = st.text_input("Bedrijfsnaam", sel['name'])
+                            u_contact = st.text_input("Contactpersoon", sel['contact'])
+                            u_email = st.text_input("Email", sel['email'])
+                            u_phone = st.text_input("Telefoon", sel['phone'])
                         
-                        # WEERGAVE BEIDE LINKS
-                        if sel.get('website'):
-                            url = sel['website']
-                            if not url.startswith('http'): url = 'https://' + url
-                            st.markdown(f"🌐 [{sel['website']}]({url})")
+                        with ec2:
+                            u_price = st.text_input("Prijs (bv. €1500)", sel['price'])
+                            u_web = st.text_input("Website URL", sel.get('website', ''))
+                            u_proj = st.text_input("Projectmap URL", sel.get('project_map', ''))
                         
-                        if sel.get('project_map'):
-                            purl = sel['project_map']
-                            if not purl.startswith('http'): purl = 'https://' + purl
-                            st.link_button("📂 Projectmap", purl)
+                        u_notes = st.text_area("Notities", sel.get('notes', ''))
                         
-                    st.markdown("---"); st.info(sel.get('notes') or "Geen notities.")
+                        # Links tonen (als ze er zijn)
+                        if u_web or u_proj:
+                            st.caption("Snelle Links:")
+                            lc1, lc2 = st.columns(2)
+                            if u_web: 
+                                w_url = u_web if u_web.startswith('http') else 'https://' + u_web
+                                lc1.markdown(f"🌐 [Website openen]({w_url})")
+                            if u_proj:
+                                p_url = u_proj if u_proj.startswith('http') else 'https://' + u_proj
+                                lc2.markdown(f"📂 [Projectmap openen]({p_url})")
+
+                        submitted = st.form_submit_button("💾 Wijzigingen Opslaan", use_container_width=True)
+                        
+                        if submitted:
+                            # Update object maken
+                            updated_lead = sel.copy()
+                            updated_lead.update({
+                                'name': u_name, 'contact': u_contact, 'email': u_email,
+                                'phone': u_phone, 'price': u_price, 'website': u_web,
+                                'project_map': u_proj, 'notes': u_notes
+                            })
+                            # Functie aanroepen om te updaten
+                            update_single_lead(updated_lead)
+                            st.success("Deal bijgewerkt!")
+                            st.rerun()
 
 # ================= TAB 3: TAKEN =================
 with tab_tasks:
