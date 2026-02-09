@@ -178,7 +178,6 @@ def update_single_lead(updated_lead):
                 found = True
                 break
         if found: break
-    
     if found:
         save_pipeline_data(st.session_state['leads_data'])
 
@@ -344,13 +343,14 @@ with tab_pipeline:
                 cont = st.text_input("Contact")
                 mail = st.text_input("Email")
                 tel = st.text_input("Tel")
-                web = st.text_input("Link naar Projectmap (URL)") 
+                web = st.text_input("Website URL")
+                proj = st.text_input("Link naar Projectmap (URL)") 
                 pri = st.text_input("€")
                 not_ = st.text_area("Note")
                 if st.form_submit_button("Toevoegen"):
                     if not comp: st.error("Naam!")
                     else:
-                        ni = {'id': str(uuid.uuid4()), 'name': comp, 'contact': cont, 'email': mail, 'phone': tel, 'project_url': web, 'price': pri, 'notes': not_}
+                        ni = {'id': str(uuid.uuid4()), 'name': comp, 'contact': cont, 'email': mail, 'phone': tel, 'website': web, 'project_map': proj, 'price': pri, 'notes': not_}
                         st.session_state['leads_data']['col1'].insert(0, ni)
                         save_pipeline_data(st.session_state['leads_data'])
                         st.session_state['board_key'] += 1; st.rerun()
@@ -395,53 +395,77 @@ with tab_pipeline:
             else:
                 sel = None; st.info("Geen deals gevonden.")
 
-        # --- AANGEPAST: EDIT FORMULIER ---
+        # --- AANGEPASTE DETAILS SECTIE (LEZEN VS BEWERKEN) ---
         if sel:
+            # Check of we in 'Edit Mode' zitten voor DEZE specifieke deal
+            # We resetten de edit mode als we een andere deal selecteren
+            if 'editing_id' not in st.session_state or st.session_state['editing_id'] != sel['id']:
+                st.session_state['edit_mode'] = False
+                st.session_state['editing_id'] = sel['id']
+
             with c_inf:
                 with st.container(border=True):
-                    st.subheader(f"✏️ Bewerk: {sel['name']}")
                     
-                    with st.form(key=f"edit_deal_form_{sel['id']}"):
-                        # De input velden met de huidige waarden als default
-                        ec1, ec2 = st.columns(2)
-                        with ec1:
-                            u_name = st.text_input("Bedrijfsnaam", sel['name'])
-                            u_contact = st.text_input("Contactpersoon", sel['contact'])
-                            u_email = st.text_input("Email", sel['email'])
-                            u_phone = st.text_input("Telefoon", sel['phone'])
-                        
-                        with ec2:
-                            u_price = st.text_input("Prijs (bv. €1500)", sel['price'])
-                            u_web = st.text_input("Website URL", sel.get('website', ''))
-                            u_proj = st.text_input("Projectmap URL", sel.get('project_map', ''))
-                        
-                        u_notes = st.text_area("Notities", sel.get('notes', ''))
-                        
-                        # Links tonen (als ze er zijn)
-                        if u_web or u_proj:
-                            st.caption("Snelle Links:")
-                            lc1, lc2 = st.columns(2)
-                            if u_web: 
-                                w_url = u_web if u_web.startswith('http') else 'https://' + u_web
-                                lc1.markdown(f"🌐 [Website openen]({w_url})")
-                            if u_proj:
-                                p_url = u_proj if u_proj.startswith('http') else 'https://' + u_proj
-                                lc2.markdown(f"📂 [Projectmap openen]({p_url})")
+                    # 1. BEWERK MODUS
+                    if st.session_state['edit_mode']:
+                        st.subheader(f"✏️ Bewerk: {sel['name']}")
+                        with st.form(key=f"edit_form_{sel['id']}"):
+                            ec1, ec2 = st.columns(2)
+                            with ec1:
+                                u_name = st.text_input("Bedrijfsnaam", sel['name'])
+                                u_contact = st.text_input("Contactpersoon", sel['contact'])
+                                u_email = st.text_input("Email", sel['email'])
+                                u_phone = st.text_input("Telefoon", sel['phone'])
+                            with ec2:
+                                u_price = st.text_input("Prijs (bv. €1500)", sel['price'])
+                                u_web = st.text_input("Website URL", sel.get('website', ''))
+                                u_proj = st.text_input("Projectmap URL", sel.get('project_map', ''))
+                            
+                            u_notes = st.text_area("Notities", sel.get('notes', ''))
+                            
+                            if st.form_submit_button("💾 Opslaan & Sluiten", use_container_width=True):
+                                updated_lead = sel.copy()
+                                updated_lead.update({
+                                    'name': u_name, 'contact': u_contact, 'email': u_email,
+                                    'phone': u_phone, 'price': u_price, 'website': u_web,
+                                    'project_map': u_proj, 'notes': u_notes
+                                })
+                                update_single_lead(updated_lead)
+                                st.session_state['edit_mode'] = False # Terug naar lees-modus
+                                st.rerun()
 
-                        submitted = st.form_submit_button("💾 Wijzigingen Opslaan", use_container_width=True)
+                    # 2. LEES MODUS (MOOIE WEERGAVE)
+                    else:
+                        r1, r2 = st.columns([4, 1])
+                        with r1: st.markdown(f"### {sel['name']}")
+                        with r2: 
+                            if st.button("✏️ Bewerken", key="btn_edit_mode"):
+                                st.session_state['edit_mode'] = True
+                                st.rerun()
+
+                        st.markdown(f"<h1 style='color:#fff;margin-top:-10px;font-size:2em'>{sel['price']}</h1>", unsafe_allow_html=True)
                         
-                        if submitted:
-                            # Update object maken
-                            updated_lead = sel.copy()
-                            updated_lead.update({
-                                'name': u_name, 'contact': u_contact, 'email': u_email,
-                                'phone': u_phone, 'price': u_price, 'website': u_web,
-                                'project_map': u_proj, 'notes': u_notes
-                            })
-                            # Functie aanroepen om te updaten
-                            update_single_lead(updated_lead)
-                            st.success("Deal bijgewerkt!")
-                            st.rerun()
+                        rc1, rc2 = st.columns(2)
+                        with rc1:
+                            st.write(f"👤 **Contact:** {sel.get('contact','-')}")
+                            st.write(f"📧 **Email:** {sel.get('email','-')}")
+                            st.write(f"☎️ **Tel:** {sel.get('phone','-')}")
+                        
+                        with rc2:
+                            if sel.get('website'):
+                                url = sel['website']; 
+                                if not url.startswith('http'): url = 'https://' + url
+                                st.markdown(f"🌐 [{sel['website']}]({url})")
+                            
+                            if sel.get('project_map'):
+                                purl = sel['project_map']; 
+                                if not purl.startswith('http'): purl = 'https://' + purl
+                                st.link_button("📂 Open Projectmap", purl)
+                            else:
+                                st.caption("Geen projectmap gekoppeld")
+
+                        st.markdown("---")
+                        st.info(sel.get('notes') or "Geen notities.")
 
 # ================= TAB 3: TAKEN =================
 with tab_tasks:
