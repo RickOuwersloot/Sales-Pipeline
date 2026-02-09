@@ -125,7 +125,7 @@ def get_sheet(sheet_name="Sheet1"):
         except: return None
     return None
 
-# --- PIPELINE FUNCTIES ---
+# --- PIPELINE FUNCTIES (MET ONDERHOUD CHECK) ---
 def load_pipeline_data():
     sheet = get_sheet("Sheet1")
     if not sheet: return None
@@ -137,6 +137,9 @@ def load_pipeline_data():
     for row in records:
         if row.get('Bedrijf'):
             raw_id = str(row.get('ID', '')).strip()
+            # Check of onderhoud 'TRUE' is in sheet
+            has_maint = str(row.get('Onderhoud', '')).upper() == 'TRUE'
+            
             lead = {
                 'id': raw_id if raw_id else str(uuid.uuid4()), 
                 'name': row.get('Bedrijf'), 
@@ -146,7 +149,8 @@ def load_pipeline_data():
                 'phone': row.get('Telefoon'), 
                 'website': row.get('Website'),        
                 'project_map': row.get('Projectmap'), 
-                'notes': row.get('Notities')
+                'notes': row.get('Notities'),
+                'maintenance': has_maint # Nieuw veld
             }
             col_key = status_map.get(row.get('Status', 'Te benaderen'), 'col1')
             data_structure[col_key].append(lead)
@@ -155,21 +159,24 @@ def load_pipeline_data():
 def save_pipeline_data(leads_data):
     sheet = get_sheet("Sheet1")
     if not sheet: return
-    rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'ID']]
+    # HEADER UPDATE: Onderhoud toegevoegd
+    rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'Onderhoud', 'ID']]
     col_map = {'col1': 'Te benaderen', 'col2': 'Opgevolgd', 'col3': 'Geland', 'col4': 'Geen interesse', 'trash': 'Prullenbak'}
     for col_key, items in leads_data.items():
         st_txt = col_map.get(col_key, 'Te benaderen')
         for i in items:
+            # Onderhoud boolean naar tekst 'TRUE' of 'FALSE'
+            m_val = "TRUE" if i.get('maintenance') else "FALSE"
+            
             rows.append([
                 st_txt, i.get('name',''), i.get('price',''), i.get('contact',''), 
                 i.get('email',''), i.get('phone',''), i.get('website',''), 
-                i.get('project_map',''), i.get('notes',''), i.get('id', str(uuid.uuid4()))
+                i.get('project_map',''), i.get('notes',''), m_val, i.get('id', str(uuid.uuid4()))
             ])
     try: sheet.clear(); sheet.update(rows)
     except: time.sleep(2); sheet.clear(); sheet.update(rows)
 
 def update_single_lead(updated_lead):
-    """Zoekt de lead op in session_state en update hem."""
     found = False
     for col_key, leads in st.session_state['leads_data'].items():
         for i, lead in enumerate(leads):
@@ -186,7 +193,8 @@ def fix_missing_ids():
     if not sheet: return
     try: records = sheet.get_all_records()
     except: return
-    rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'ID']]
+    # HEADER UPDATE
+    rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'Onderhoud', 'ID']]
     seen = set(); change = False
     for r in records:
         cid = str(r.get('ID','')).strip()
@@ -196,7 +204,7 @@ def fix_missing_ids():
         rows.append([
             r.get('Status',''), r.get('Bedrijf',''), r.get('Prijs',''), r.get('Contact',''), 
             r.get('Email',''), r.get('Telefoon',''), r.get('Website',''), 
-            r.get('Projectmap',''), r.get('Notities',''), nid
+            r.get('Projectmap',''), r.get('Notities',''), r.get('Onderhoud','FALSE'), nid
         ])
     if change: sheet.clear(); sheet.update(rows); st.success("IDs fixed!"); st.cache_resource.clear(); st.rerun()
     else: st.toast("IDs OK")
@@ -345,12 +353,21 @@ with tab_pipeline:
                 tel = st.text_input("Tel")
                 web = st.text_input("Website URL")
                 proj = st.text_input("Link naar Projectmap (URL)") 
+                
+                # NIEUWE OPTIE: ONDERHOUD
+                m_contr = st.checkbox("🔧 Heeft Onderhoudscontract?")
+                
                 pri = st.text_input("€")
                 not_ = st.text_area("Note")
                 if st.form_submit_button("Toevoegen"):
                     if not comp: st.error("Naam!")
                     else:
-                        ni = {'id': str(uuid.uuid4()), 'name': comp, 'contact': cont, 'email': mail, 'phone': tel, 'website': web, 'project_map': proj, 'price': pri, 'notes': not_}
+                        ni = {
+                            'id': str(uuid.uuid4()), 'name': comp, 'contact': cont, 
+                            'email': mail, 'phone': tel, 'website': web, 
+                            'project_map': proj, 'price': pri, 'notes': not_,
+                            'maintenance': m_contr # Opslaan
+                        }
                         st.session_state['leads_data']['col1'].insert(0, ni)
                         save_pipeline_data(st.session_state['leads_data'])
                         st.session_state['board_key'] += 1; st.rerun()
@@ -363,18 +380,42 @@ with tab_pipeline:
     cols = [('col1', 'Te benaderen'), ('col2', 'Opgevolgd'), ('col3', 'Geland 🎉'), ('col4', 'Geen interesse'), ('trash', 'Prullenbak 🗑️')]
     k_data = []
     all_leads = []
+    
+    # KANBAN KAARTJES GENEREREN
     for k, name in cols:
-        items = [f"{l['name']}{(' | ' + l['price']) if l['price'] else ''}" for l in st.session_state['leads_data'][k]]
+        items = []
+        for l in st.session_state['leads_data'][k]:
+            # HIER KOMT HET SLEUTELTJE 🔧
+            name_label = l['name']
+            if l.get('maintenance'):
+                name_label += " 🔧"
+                
+            price_part = f" | {l['price']}" if l['price'] else ""
+            items.append(f"{name_label}{price_part}")
+            
         all_leads.extend(st.session_state['leads_data'][k])
         k_data.append({'header': name, 'items': items})
 
     s_data = sort_items(k_data, multi_containers=True, key=f"board_{st.session_state['board_key']}")
 
+    # LOGICA VOOR VERSLEPEN
     if len(s_data) == 5:
         new_st = {}
-        lookup = {f"{l['name']}{(' | ' + l['price']) if l['price'] else ''}": l for l in all_leads}
+        # We moeten even slim mappen omdat de kaartjes nu een 🔧 kunnen hebben
+        # We maken een lookup table op basis van de gegenereerde kaart-tekst
+        lookup = {}
+        for l in all_leads:
+            name_label = l['name']
+            if l.get('maintenance'):
+                name_label += " 🔧"
+            price_part = f" | {l['price']}" if l['price'] else ""
+            card_txt = f"{name_label}{price_part}"
+            lookup[card_txt] = l
+
         for i, cd in enumerate(s_data):
             new_st[cols[i][0]] = [lookup[x] for x in cd['items'] if x in lookup]
+            
+        # Checken op wijzigingen
         curr_ids = [[l['id'] for l in c] for c in st.session_state['leads_data'].values()]
         new_ids = [[l['id'] for l in c] for c in new_st.values()]
         if curr_ids != new_ids:
@@ -395,10 +436,8 @@ with tab_pipeline:
             else:
                 sel = None; st.info("Geen deals gevonden.")
 
-        # --- AANGEPASTE DETAILS SECTIE (LEZEN VS BEWERKEN) ---
+        # --- AANGEPASTE DETAILS SECTIE ---
         if sel:
-            # Check of we in 'Edit Mode' zitten voor DEZE specifieke deal
-            # We resetten de edit mode als we een andere deal selecteren
             if 'editing_id' not in st.session_state or st.session_state['editing_id'] != sel['id']:
                 st.session_state['edit_mode'] = False
                 st.session_state['editing_id'] = sel['id']
@@ -406,7 +445,6 @@ with tab_pipeline:
             with c_inf:
                 with st.container(border=True):
                     
-                    # 1. BEWERK MODUS
                     if st.session_state['edit_mode']:
                         st.subheader(f"✏️ Bewerk: {sel['name']}")
                         with st.form(key=f"edit_form_{sel['id']}"):
@@ -420,6 +458,9 @@ with tab_pipeline:
                                 u_price = st.text_input("Prijs (bv. €1500)", sel['price'])
                                 u_web = st.text_input("Website URL", sel.get('website', ''))
                                 u_proj = st.text_input("Projectmap URL", sel.get('project_map', ''))
+                                
+                                # EDIT ONDERHOUD
+                                u_maint = st.checkbox("🔧 Onderhoudscontract actief?", value=sel.get('maintenance', False))
                             
                             u_notes = st.text_area("Notities", sel.get('notes', ''))
                             
@@ -428,16 +469,21 @@ with tab_pipeline:
                                 updated_lead.update({
                                     'name': u_name, 'contact': u_contact, 'email': u_email,
                                     'phone': u_phone, 'price': u_price, 'website': u_web,
-                                    'project_map': u_proj, 'notes': u_notes
+                                    'project_map': u_proj, 'notes': u_notes,
+                                    'maintenance': u_maint
                                 })
                                 update_single_lead(updated_lead)
-                                st.session_state['edit_mode'] = False # Terug naar lees-modus
+                                st.session_state['edit_mode'] = False 
                                 st.rerun()
 
-                    # 2. LEES MODUS (MOOIE WEERGAVE)
                     else:
                         r1, r2 = st.columns([4, 1])
-                        with r1: st.markdown(f"### {sel['name']}")
+                        with r1: 
+                            # NAAM MET ICOON ALS ER CONTRACT IS
+                            display_name = sel['name']
+                            if sel.get('maintenance'): display_name += " 🔧"
+                            st.markdown(f"### {display_name}")
+                            
                         with r2: 
                             if st.button("✏️ Bewerken", key="btn_edit_mode"):
                                 st.session_state['edit_mode'] = True
