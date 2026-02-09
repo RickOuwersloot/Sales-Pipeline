@@ -16,27 +16,59 @@ st.set_page_config(
     initial_sidebar_state="auto" 
 )
 
+# ==========================================
+# 🔐 BEVEILIGING (LOGIN SYSTEEM)
+# ==========================================
+def check_password():
+    """Vraagt om wachtwoord en checkt dit met Streamlit Secrets."""
+    
+    def password_entered():
+        # Check of het ingevoerde wachtwoord klopt met wat in Secrets staat
+        if st.session_state["password"] == st.secrets["passwords"]["mijn_wachtwoord"]:
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]  # Wachtwoord uit geheugen wissen
+        else:
+            st.session_state["password_correct"] = False
+
+    # Als we al ingelogd zijn, return True
+    if st.session_state.get("password_correct", False):
+        return True
+
+    # Toon de login velden
+    st.markdown("### 🔐 Inloggen RO Marketing CRM")
+    st.text_input("Voer wachtwoord in", type="password", on_change=password_entered, key="password")
+    
+    if "password_correct" in st.session_state and not st.session_state["password_correct"]:
+        st.error("😕 Wachtwoord onjuist")
+
+    return False
+
+# STOP DE APP ALS HET WACHTWOORD NIET KLOPT
+if not check_password():
+    st.stop()
+
+# ==========================================
+# HIERONDER BEGINT DE REST VAN DE APP PAS
+# ==========================================
+
 # --- CONSTANTEN ---
 TASK_CATEGORIES = ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"]
 HOURLY_RATE = 30.0
 
-# --- 2. CSS STYLING (RESPONSIVE FIX 📱) ---
+# --- 2. CSS STYLING ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
 
-    /* BASE STYLING */
     .stApp { font-family: 'Montserrat', sans-serif !important; }
     p, input, textarea, .stMarkdown, h1, h2, h3, h4, h5, h6, .stSelectbox, .stTextInput, .stDateInput, .stNumberInput { 
         font-family: 'Montserrat', sans-serif !important; 
     }
     
-    /* ICON SAVER */
     button, i, span[class^="material-symbols"] { font-family: inherit !important; }
     [data-testid="stSidebarCollapsedControl"] button,
     [data-testid="stSidebarExpandedControl"] button { font-family: "Source Sans Pro", sans-serif !important; }
 
-    /* HEADERS */
     h1, h2, h3, .stHeading, .st-emotion-cache-10trblm {
         font-family: 'Dela Gothic One', cursive !important;
         letter-spacing: 1px;
@@ -44,23 +76,23 @@ st.markdown("""
     }
 
     .stApp { background-color: #0E1117; }
-    .block-container { max_width: 100% !important; padding: 1rem 2rem; }
+    .block-container { max_width: 100% !important; padding: 2rem; }
     
     /* TABS */
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; overflow-x: auto; flex-wrap: nowrap; }
+    .stTabs [data-baseweb="tab-list"] { gap: 20px; }
     .stTabs [data-baseweb="tab"] {
-        height: 50px; white-space: nowrap; background-color: #25262b;
+        height: 50px; white-space: pre-wrap; background-color: #25262b;
         border-radius: 5px 5px 0 0; gap: 1px; padding: 10px; color: white;
     }
     .stTabs [aria-selected="true"] { background-color: #2196F3 !important; color: white !important; }
 
     /* METRICS BOX */
     div[data-testid="metric-container"] {
-        background-color: #25262b; border: 1px solid #333; padding: 15px; border-radius: 10px; color: white;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 10px;
+        background-color: #25262b; border: 1px solid #333; padding: 20px; border-radius: 10px; color: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
-    /* KANBAN (Desktop Default) */
+    /* KANBAN */
     div[class*="stSortable"] { display: flex; flex-direction: row; overflow-x: auto; gap: 15px; padding-bottom: 20px; }
     div[class*="stSortable"] > div {
         display: flex; flex-direction: column; flex: 0 0 auto; width: 300px;
@@ -74,29 +106,13 @@ st.markdown("""
     div[class*="stSortable"] > div > div:hover {
         background-color: #363c4e !important; border-color: #64b5f6 !important; transform: translateY(-2px);
     }
-
-    /* --- MOBILE RESPONSIVE TWEAKS (@media) --- */
+    
+    /* MOBILE TWEAKS */
     @media (max-width: 768px) {
-        /* Minder padding aan de zijkanten */
         .block-container { padding: 1rem 0.5rem !important; }
-        
-        /* Headers iets kleiner */
         h1 { font-size: 1.8rem !important; }
-        h2 { font-size: 1.5rem !important; }
-        h3 { font-size: 1.2rem !important; }
-
-        /* Kanban bord: iets smallere kolommen zodat je meer ziet */
         div[class*="stSortable"] > div { width: 260px !important; min-width: 260px !important; }
-        
-        /* Takenlijst: Flexbox wrapping voor datum/labels */
-        div[style*="display:flex;gap:10px"] {
-            flex-wrap: wrap !important;
-            justify-content: flex-start !important;
-            gap: 5px !important;
-        }
-        
-        /* Zorg dat kolommen in lijsten niet te smal worden (forceer wrap indien nodig) */
-        [data-testid="column"] { min-width: 100px !important; }
+        div[style*="display:flex;gap:10px"] { flex-wrap: wrap !important; }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -137,7 +153,7 @@ def load_pipeline_data():
                 'id': raw_id if raw_id else str(uuid.uuid4()), 
                 'name': row.get('Bedrijf'), 'price': row.get('Prijs'),
                 'contact': row.get('Contact'), 'email': row.get('Email'),
-                'phone': row.get('Telefoon'), 'website': row.get('Website'), 'notes': row.get('Notities')
+                'phone': row.get('Telefoon'), 'project_url': row.get('Website'), 'notes': row.get('Notities')
             }
             col_key = status_map.get(row.get('Status', 'Te benaderen'), 'col1')
             data_structure[col_key].append(lead)
@@ -151,7 +167,7 @@ def save_pipeline_data(leads_data):
     for col_key, items in leads_data.items():
         st_txt = col_map.get(col_key, 'Te benaderen')
         for i in items:
-            rows.append([st_txt, i.get('name',''), i.get('price',''), i.get('contact',''), i.get('email',''), i.get('phone',''), i.get('website',''), i.get('notes',''), i.get('id', str(uuid.uuid4()))])
+            rows.append([st_txt, i.get('name',''), i.get('price',''), i.get('contact',''), i.get('email',''), i.get('phone',''), i.get('project_url',''), i.get('notes',''), i.get('id', str(uuid.uuid4()))])
     try: sheet.clear(); sheet.update(rows)
     except: time.sleep(2); sheet.clear(); sheet.update(rows)
 
@@ -291,7 +307,7 @@ with tab_dash:
         pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col3']])
         
         m1, m2, m3 = st.columns(3)
-        m1.metric(f"Omzet Uren ({sel_month})", f"€ {m_data['Totaal'].sum():,.2f}")
+        m1.metric(f"Waarde Uren ({sel_month})", f"€ {m_data['Totaal'].sum():,.2f}")
         m2.metric(f"Gewerkte Uren ({sel_month})", f"{m_data['Uren'].sum():.1f} uur")
         m3.metric("Totaal Deals Geland 🎉", f"€ {pipe_val:,.2f}")
         
@@ -313,13 +329,13 @@ with tab_pipeline:
                 cont = st.text_input("Contact")
                 mail = st.text_input("Email")
                 tel = st.text_input("Tel")
-                web = st.text_input("Web")
+                web = st.text_input("Link naar Projectmap (URL)") 
                 pri = st.text_input("€")
                 not_ = st.text_area("Note")
                 if st.form_submit_button("Toevoegen"):
                     if not comp: st.error("Naam!")
                     else:
-                        ni = {'id': str(uuid.uuid4()), 'name': comp, 'contact': cont, 'email': mail, 'phone': tel, 'website': web, 'price': pri, 'notes': not_}
+                        ni = {'id': str(uuid.uuid4()), 'name': comp, 'contact': cont, 'email': mail, 'phone': tel, 'project_url': web, 'price': pri, 'notes': not_}
                         st.session_state['leads_data']['col1'].insert(0, ni)
                         save_pipeline_data(st.session_state['leads_data'])
                         st.session_state['board_key'] += 1; st.rerun()
@@ -372,7 +388,11 @@ with tab_pipeline:
                     with c1: st.markdown(f"### {sel['name']}"); st.markdown(f"<h1 style='color:#fff;margin-top:-10px'>{sel['price']}</h1>", unsafe_allow_html=True)
                     with c2: 
                         st.write(f"👤 {sel.get('contact','-')}"); st.write(f"📧 {sel.get('email','-')}"); st.write(f"☎️ {sel.get('phone','-')}")
-                        if sel.get('website'): st.markdown(f"🌐 [{sel['website']}]({'https://'+sel['website'] if not sel['website'].startswith('http') else sel['website']})")
+                        if sel.get('project_url'): 
+                            url = sel['project_url']
+                            if not url.startswith('http'): url = 'https://' + url
+                            st.link_button("📂 Open Projectmap", url)
+                        else: st.caption("Geen projectmap link ingesteld.")
                     st.markdown("---"); st.info(sel.get('notes') or "Geen notities.")
 
 # ================= TAB 3: TAKEN =================
@@ -412,7 +432,6 @@ with tab_tasks:
             opac = "0.5" if done else "1.0"
             strike = "text-decoration: line-through;" if done else ""
             with st.container(border=True):
-                # AANGEPAST VOOR MOBIEL: 0.5, 6, 2.5
                 c_chk, c_inf, c_met = st.columns([0.5, 6, 2.5])
                 with c_chk:
                     if st.checkbox("", value=done, key=f"chk_{t['ID']}") != done:
@@ -425,7 +444,6 @@ with tab_tasks:
                     praw = t.get('Prioriteit', "⏺️ Midden")
                     if praw not in ["🔥 Hoog", "⏺️ Midden", "💤 Laag"]: praw = "⏺️ Midden"
                     pcol = "#ff4b4b" if "Hoog" in praw else "#ffa421" if "Midden" in praw else "#00c0f2"
-                    # CSS FLEXBOX VOOR RESPONSIVENESS
                     st.markdown(f"<div style='display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;opacity:{opac}'><span style='color:{pcol};font-weight:bold;font-size:0.9em'>{praw}</span><span style='font-weight:700;color:#eee'>📅 {t['Deadline']}</span><span style='background:#333;padding:4px 8px;border-radius:4px;font-size:0.8em;border:1px solid #444'>{t['Categorie']}</span></div>", unsafe_allow_html=True)
                 with st.expander("✏️ Bewerk"):
                     with st.form(f"edit_{t['ID']}"):
