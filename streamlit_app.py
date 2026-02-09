@@ -17,6 +17,7 @@ st.set_page_config(
 
 # --- CONSTANTEN ---
 TASK_CATEGORIES = ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"]
+HOURLY_RATE = 30.0  # Jouw vaste tarief
 
 # --- 2. CSS STYLING ---
 st.markdown("""
@@ -24,7 +25,7 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
 
     .stApp { font-family: 'Montserrat', sans-serif !important; }
-    p, input, textarea, .stMarkdown, h1, h2, h3, h4, h5, h6, .stSelectbox, .stTextInput, .stDateInput { 
+    p, input, textarea, .stMarkdown, h1, h2, h3, h4, h5, h6, .stSelectbox, .stTextInput, .stDateInput, .stNumberInput { 
         font-family: 'Montserrat', sans-serif !important; 
     }
     
@@ -41,6 +42,7 @@ st.markdown("""
     .stApp { background-color: #0E1117; }
     .block-container { max_width: 100% !important; padding: 2rem; }
     
+    /* TABS */
     .stTabs [data-baseweb="tab-list"] { gap: 20px; }
     .stTabs [data-baseweb="tab"] {
         height: 50px; white-space: pre-wrap; background-color: #25262b;
@@ -48,6 +50,16 @@ st.markdown("""
     }
     .stTabs [aria-selected="true"] { background-color: #2196F3 !important; color: white !important; }
 
+    /* METRICS BOX */
+    div[data-testid="metric-container"] {
+        background-color: #25262b;
+        border: 1px solid #333;
+        padding: 15px;
+        border-radius: 10px;
+        color: white;
+    }
+
+    /* KANBAN */
     div[class*="stSortable"] { display: flex; flex-direction: row; overflow-x: auto; gap: 15px; padding-bottom: 20px; }
     div[class*="stSortable"] > div {
         display: flex; flex-direction: column; flex: 0 0 auto; width: 300px;
@@ -92,7 +104,7 @@ def load_pipeline_data():
     try:
         records = sheet.get_all_records()
     except gspread.exceptions.APIError:
-        st.warning("⚠️ Google doet even moeilijk (te veel verzoeken). Even wachten..."); time.sleep(2)
+        time.sleep(2)
         try: records = sheet.get_all_records()
         except: return None
     except: return None
@@ -145,10 +157,6 @@ def load_tasks():
     sheet = get_sheet("Taken")
     if not sheet: return []
     try: return [r for r in sheet.get_all_records() if r.get('ID')]
-    except gspread.exceptions.APIError:
-        time.sleep(2)
-        try: return [r for r in sheet.get_all_records() if r.get('ID')]
-        except: return []
     except: return []
 
 def add_task(klant, taak, categorie, deadline, prioriteit, notities):
@@ -195,6 +203,32 @@ def delete_completed_tasks():
             rows.append([r.get('Status'), r.get('Klant'), r.get('Taak'), r.get('Categorie'), r.get('Deadline'), r.get('Prioriteit'), r.get('Notities'), r.get('ID')])
     sheet.clear(); sheet.update(rows)
 
+# --- UREN FUNCTIES (NIEUW) ---
+def load_hours():
+    sheet = get_sheet("Uren")
+    if not sheet: return []
+    try: return [r for r in sheet.get_all_records() if r.get('ID')]
+    except: return []
+
+def log_time(klant, datum, uren, omschrijving):
+    sheet = get_sheet("Uren")
+    if not sheet: return
+    totaal = float(uren) * HOURLY_RATE
+    # Datum, Klant, Uren, Omschrijving, Tarief, Totaal, ID
+    row = [str(datum), klant, float(uren), omschrijving, HOURLY_RATE, totaal, str(uuid.uuid4())]
+    try: sheet.append_row(row)
+    except: time.sleep(1); sheet.append_row(row)
+
+def delete_hour_entry(entry_id):
+    sheet = get_sheet("Uren")
+    if not sheet: return
+    records = sheet.get_all_records()
+    rows = [['Datum', 'Klant', 'Uren', 'Omschrijving', 'Tarief', 'Totaal', 'ID']]
+    for r in records:
+        if str(r.get('ID')) != entry_id:
+            rows.append([r['Datum'], r['Klant'], r['Uren'], r['Omschrijving'], r['Tarief'], r['Totaal'], r['ID']])
+    sheet.clear(); sheet.update(rows)
+
 # --- INITIALISATIE ---
 if 'leads_data' not in st.session_state:
     loaded = load_pipeline_data()
@@ -208,7 +242,7 @@ all_companies.sort()
 
 # --- APP LAYOUT ---
 st.title("🚀 RO Marketing CRM")
-tab_pipeline, tab_tasks = st.tabs(["📊 Pipeline", "✅ Projecten & Taken"])
+tab_pipeline, tab_tasks, tab_hours = st.tabs(["📊 Pipeline", "✅ Taken", "⏱️ Uren & Tijd"])
 
 # ================= TAB 1: PIPELINE =================
 with tab_pipeline:
@@ -275,18 +309,16 @@ with tab_pipeline:
                         if sel.get('website'): st.markdown(f"🌐 [{sel['website']}]({'https://'+sel['website'] if not sel['website'].startswith('http') else sel['website']})")
                     st.markdown("---"); st.info(sel.get('notes') or "Geen notities.")
 
-# ================= TAB 2: TAKEN (MET EXTRA FILTER) =================
+# ================= TAB 2: TAKEN =================
 with tab_tasks:
     st.header("✅ Projectmanagement")
     
-    # 1. FILTERS (NU MET CATEGORIE)
     c_filt1, c_filt2 = st.columns(2)
     with c_filt1:
         klant_filter = st.selectbox("📂 Filter op Klant:", ["Alle Projecten"] + all_companies)
     with c_filt2:
         cat_filter = st.selectbox("🏷️ Filter op Categorie:", ["Alle Categorieën"] + TASK_CATEGORIES)
     
-    # NIEUWE TAAK
     with st.expander(f"➕ Taak toevoegen", expanded=False):
         with st.form("new_task"):
             ca, cb = st.columns(2)
@@ -303,31 +335,17 @@ with tab_tasks:
                 add_task(n_klant, n_taak, n_cat, n_date, n_prio, n_note)
                 st.success("Opgeslagen!"); st.rerun()
 
-    # TAKEN LIJST OPHALEN EN FILTEREN
     all_tasks = load_tasks()
     disp_tasks = all_tasks
+    if klant_filter != "Alle Projecten": disp_tasks = [t for t in disp_tasks if t.get('Klant') == klant_filter]
+    if cat_filter != "Alle Categorieën": disp_tasks = [t for t in disp_tasks if t.get('Categorie') == cat_filter]
 
-    # Filter 1: Klant
-    if klant_filter != "Alle Projecten":
-        disp_tasks = [t for t in disp_tasks if t.get('Klant') == klant_filter]
-    
-    # Filter 2: Categorie (NIEUW)
-    if cat_filter != "Alle Categorieën":
-        disp_tasks = [t for t in disp_tasks if t.get('Categorie') == cat_filter]
-
-    if not disp_tasks:
-        st.info(f"Geen taken gevonden voor deze filters.")
+    if not disp_tasks: st.info(f"Geen taken gevonden.")
     else:
-        # SORTEREN
         prio_map = {"🔥 Hoog": 1, "⏺️ Midden": 2, "💤 Laag": 3}
-        disp_tasks.sort(key=lambda x: (
-            str(x.get('Status')).upper() == 'TRUE',
-            prio_map.get(x.get('Prioriteit'), 2), 
-            x.get('Deadline')
-        ))
+        disp_tasks.sort(key=lambda x: (str(x.get('Status')).upper() == 'TRUE', prio_map.get(x.get('Prioriteit'), 2), x.get('Deadline')))
         
         st.write(f"**{len(disp_tasks)} taken**")
-        
         for task in disp_tasks:
             if not task.get('ID'): continue
             is_done = str(task.get('Status')).upper() == 'TRUE'
@@ -336,30 +354,20 @@ with tab_tasks:
             
             with st.container(border=True):
                 c_check, c_info, c_meta = st.columns([0.5, 5.5, 3])
-                
                 with c_check:
                     if st.checkbox("", value=is_done, key=f"chk_{task['ID']}") != is_done:
                         toggle_task_status(task['ID'], str(task.get('Status')).upper()); st.rerun()
-                
                 with c_info:
                     klant_lbl = f"<span style='color:#2196F3;font-weight:bold'>{task.get('Klant')}</span> | " if klant_filter == "Alle Projecten" else ""
                     st.markdown(f"<div style='opacity:{opacity};{strike}'>{klant_lbl}<strong>{task['Taak']}</strong></div>", unsafe_allow_html=True)
                     if task.get('Notities'): st.caption(f"📝 {task['Notities']}")
-                
                 with c_meta:
                     prio_raw = task.get('Prioriteit', "⏺️ Midden")
                     if prio_raw not in ["🔥 Hoog", "⏺️ Midden", "💤 Laag"]: prio_raw = "⏺️ Midden"
                     prio_color = "#ff4b4b" if "Hoog" in prio_raw else "#ffa421" if "Midden" in prio_raw else "#00c0f2"
-                    
-                    st.markdown(f"""
-                    <div style='display:flex;gap:10px;align-items:center;justify-content:flex-end;opacity:{opacity}'>
-                        <span style='color:{prio_color};font-weight:bold;font-size:0.9em'>{prio_raw}</span>
-                        <span style='font-weight:700;color:#eee'>📅 {task['Deadline']}</span>
-                        <span style='background:#333;padding:4px 8px;border-radius:4px;font-size:0.8em;border:1px solid #444'>{task['Categorie']}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"<div style='display:flex;gap:10px;align-items:center;justify-content:flex-end;opacity:{opacity}'><span style='color:{prio_color};font-weight:bold;font-size:0.9em'>{prio_raw}</span><span style='font-weight:700;color:#eee'>📅 {task['Deadline']}</span><span style='background:#333;padding:4px 8px;border-radius:4px;font-size:0.8em;border:1px solid #444'>{task['Categorie']}</span></div>", unsafe_allow_html=True)
                 
-                with st.expander("✏️ Bewerk Taak"):
+                with st.expander("✏️ Bewerk"):
                     with st.form(f"edit_{task['ID']}"):
                         ec1, ec2 = st.columns(2)
                         with ec1:
@@ -369,16 +377,85 @@ with tab_tasks:
                         with ec2:
                             d_val = datetime.strptime(task['Deadline'], "%Y-%m-%d").date() if task['Deadline'] else date.today()
                             e_date = st.date_input("Deadline", d_val)
-                            p_safe = task.get('Prioriteit', "⏺️ Midden")
+                            p_safe = task.get('Prioriteit', "⏺️ Midden"); 
                             if p_safe not in ["🔥 Hoog", "⏺️ Midden", "💤 Laag"]: p_safe = "⏺️ Midden"
                             e_prio = st.selectbox("Prioriteit", ["🔥 Hoog", "⏺️ Midden", "💤 Laag"], index=["🔥 Hoog", "⏺️ Midden", "💤 Laag"].index(p_safe))
-                        
                         e_note = st.text_area("Notities", task.get('Notities', ''))
-                        
-                        if st.form_submit_button("💾 Wijzigingen Opslaan"):
+                        if st.form_submit_button("Opslaan"):
                             new_data = {'Klant': e_klant, 'Taak': e_taak, 'Categorie': e_cat, 'Deadline': e_date, 'Prioriteit': e_prio, 'Notities': e_note}
                             update_task_data(task['ID'], new_data); st.success("Opgeslagen!"); st.rerun()
 
     st.divider()
     if st.button("🧹 Voltooide taken verwijderen"):
         delete_completed_tasks(); st.success("Opgeruimd!"); st.rerun()
+
+# ================= TAB 3: UREN (NIEUW!) =================
+with tab_hours:
+    st.header("⏱️ Urenregistratie")
+    st.markdown(f"**Vast Tarief:** €{HOURLY_RATE} / uur")
+    
+    # 1. UREN SCHRIJVEN
+    with st.container(border=True):
+        st.subheader("✍️ Tijd Schrijven")
+        with st.form("log_time"):
+            hc1, hc2, hc3 = st.columns([2, 1, 2])
+            with hc1:
+                h_klant = st.selectbox("Klant", all_companies)
+                h_datum = st.date_input("Datum", date.today())
+            with hc2:
+                h_uren = st.number_input("Uren", min_value=0.0, step=0.25, format="%.2f")
+            with hc3:
+                h_desc = st.text_input("Omschrijving (Wat heb je gedaan?)")
+                submit_hours = st.form_submit_button("⏱️ Log Tijd", use_container_width=True)
+            
+            if submit_hours:
+                if h_uren > 0:
+                    log_time(h_klant, h_datum, h_uren, h_desc)
+                    st.success(f"{h_uren} uur geschreven op {h_klant}!")
+                    st.rerun()
+                else:
+                    st.error("Vul een aantal uren in!")
+
+    # 2. OVERZICHT & TOTALEN
+    st.divider()
+    
+    # Filter voor overzicht
+    h_filter = st.selectbox("🔍 Filter overzicht op klant:", ["Alle Klanten"] + all_companies)
+    
+    all_hours = load_hours()
+    
+    # Filteren
+    if h_filter != "Alle Klanten":
+        filtered_hours = [h for h in all_hours if h.get('Klant') == h_filter]
+    else:
+        filtered_hours = all_hours
+
+    # Totalen berekenen
+    total_hours = sum([float(h.get('Uren', 0)) for h in filtered_hours])
+    total_money = sum([float(h.get('Totaal', 0)) for h in filtered_hours])
+
+    # METRICS TONEN
+    m1, m2 = st.columns(2)
+    m1.metric("Totaal Uren", f"{total_hours:.2f} uur")
+    m2.metric("Totale Waarde", f"€ {total_money:,.2f}")
+
+    # TABEL TONEN
+    if filtered_hours:
+        # We maken een mooie lijst om te tonen
+        st.markdown("### 📜 Logboek")
+        for entry in reversed(filtered_hours): # Nieuwste bovenaan
+            with st.container(border=True):
+                col_a, col_b, col_c, col_d = st.columns([1.5, 4, 1.5, 1])
+                with col_a:
+                    st.caption(entry['Datum'])
+                    st.write(f"**{entry['Klant']}**")
+                with col_b:
+                    st.write(entry['Omschrijving'])
+                with col_c:
+                    st.markdown(f"**{entry['Uren']}u** (€{entry['Totaal']})")
+                with col_d:
+                    if st.button("🗑️", key=f"del_h_{entry['ID']}"):
+                        delete_hour_entry(entry['ID'])
+                        st.rerun()
+    else:
+        st.info("Nog geen uren geschreven voor deze selectie.")
