@@ -8,6 +8,13 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import date, datetime
 
+# --- NIEUWE IMPORT VOOR KALENDER ---
+# Zorg dat je 'pip install streamlit-calendar' hebt gedaan!
+try:
+    from streamlit_calendar import calendar
+except ImportError:
+    st.error("Installeer de kalender plugin: pip install streamlit-calendar")
+
 # --- 1. CONFIGURATIE ---
 st.set_page_config(
     page_title="RO Marketing CRM", 
@@ -290,22 +297,15 @@ def load_hours():
     records = robust_get_all_records(sheet)
     return [r for r in records if r.get('ID')]
 
-# NIEUW: BATCH SAVE FUNCTIE VOOR UREN
 def save_queued_hours(queue):
     sheet = get_sheet("Uren")
     if not sheet: st.error("Tabblad 'Uren' niet gevonden!"); return False
-    
     rows = []
     for h in queue:
         totaal = float(h['uren']) * HOURLY_RATE
-        # Datum, Klant, Uren, Omschrijving, Tarief, Totaal, ID
         rows.append([str(h['datum']), h['klant'], float(h['uren']), h['desc'], HOURLY_RATE, totaal, str(uuid.uuid4())])
-    
-    try:
-        sheet.append_rows(rows)
-        return True
-    except:
-        return False
+    try: sheet.append_rows(rows); return True
+    except: return False
 
 def delete_hour_entry(entry_id):
     sheet = get_sheet("Uren")
@@ -329,7 +329,7 @@ if 'leads_data' not in st.session_state:
     loaded = load_pipeline_data()
     st.session_state['leads_data'] = loaded if loaded else {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
 if 'board_key' not in st.session_state: st.session_state['board_key'] = 0
-if 'hour_queue' not in st.session_state: st.session_state['hour_queue'] = [] # Wachtrij voor uren
+if 'hour_queue' not in st.session_state: st.session_state['hour_queue'] = [] 
 
 all_companies = []
 for col_list in st.session_state['leads_data'].values():
@@ -693,18 +693,60 @@ with tab_hours:
             st.session_state['hour_queue'] = []
             st.rerun()
 
-    # 3. HET OVERZICHT (OUDE STIJL)
+    # 3. KALENDER VIEW (ALLEEN WEERGAVE)
     st.divider()
-    hf = st.selectbox("🔍 Filter overzicht op klant:", ["Alle Klanten"] + all_companies, key="hour_overview_filter")
-    ah = load_hours()
-    fh = [h for h in ah if h.get('Klant') == hf] if hf != "Alle Klanten" else ah
-    th = sum([float(h.get('Uren', 0)) for h in fh])
-    tm = sum([float(h.get('Totaal', 0)) for h in fh])
-    m1, m2 = st.columns(2)
-    m1.metric("Totaal Uren", f"{th:.2f} uur")
-    m2.metric("Totale Waarde", f"€ {tm:,.2f}")
-    if fh:
-        st.markdown("### 📜 Logboek (Geschiedenis)")
+    st.subheader("📅 Kalender Overzicht")
+    
+    # Haal alle uren op en converteer naar kalender-events
+    all_hours_data = load_hours()
+    calendar_events = []
+    
+    if all_hours_data:
+        for h in all_hours_data:
+            # We maken een event voor elke urenregistratie
+            # Titel: Klantnaam (X uur)
+            # Datum: De datum uit de sheet
+            try:
+                evt = {
+                    "title": f"{h['Klant']} ({h['Uren']}u)",
+                    "start": h['Datum'],
+                    "allDay": True,
+                    # Optioneel: geef verschillende kleuren per klant of een standaard kleur
+                    "backgroundColor": THEME_COLOR,
+                    "borderColor": THEME_COLOR
+                }
+                calendar_events.append(evt)
+            except:
+                continue
+
+    # Kalender configuratie
+    calendar_options = {
+        "headerToolbar": {
+            "left": "today prev,next",
+            "center": "title",
+            "right": "dayGridMonth,timeGridWeek,timeGridDay"
+        },
+        "initialView": "dayGridMonth",
+        "selectable": True,
+    }
+    
+    if 'calendar' in globals():
+        calendar(events=calendar_events, options=calendar_options)
+    
+    # 4. HET OUDE LIJST OVERZICHT (ALS BACKUP)
+    with st.expander("📜 Bekijk als Lijst"):
+        hf = st.selectbox("🔍 Filter overzicht op klant:", ["Alle Klanten"] + all_companies, key="hour_overview_filter")
+        
+        fh = [h for h in all_hours_data if h.get('Klant') == hf] if hf != "Alle Klanten" else all_hours_data
+        
+        # Totalen voor de selectie
+        th = sum([float(h.get('Uren', 0)) for h in fh])
+        tm = sum([float(h.get('Totaal', 0)) for h in fh])
+        
+        m1, m2 = st.columns(2)
+        m1.metric("Totaal Uren (Selectie)", f"{th:.2f} uur")
+        m2.metric("Totale Waarde (Selectie)", f"€ {tm:,.2f}")
+        
         for e in reversed(fh):
             with st.container(border=True):
                 ca, cb, cc, cd = st.columns([1.5, 4, 1.5, 1])
@@ -713,4 +755,3 @@ with tab_hours:
                 with cc: st.markdown(f"**{e['Uren']}u** (€{e['Totaal']})")
                 with cd:
                     if st.button("🗑️", key=f"del_h_{e['ID']}"): delete_hour_entry(e['ID']); st.rerun()
-    else: st.info("Nog geen uren geschreven.")
