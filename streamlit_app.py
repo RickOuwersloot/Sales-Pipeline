@@ -122,11 +122,9 @@ def get_sheet(sheet_name="Sheet1"):
 
 # --- CRUCIALE FUNCTIE: CLEAR CACHE ---
 def clear_data_cache():
-    """Gooit het geheugen leeg zodat we verse data krijgen."""
     st.cache_data.clear()
 
-# --- DATALOADERS (NU MET CACHING VOOR SNELHEID) ---
-# TTL=600 betekent: onthoud data 10 minuten, tenzij we clear_data_cache aanroepen
+# --- DATALOADERS ---
 @st.cache_data(ttl=600) 
 def get_all_records_cached(sheet_name):
     sheet = get_sheet(sheet_name)
@@ -169,10 +167,9 @@ def save_pipeline_data(leads_data):
             rows.append([st_txt, i.get('name',''), i.get('price',''), i.get('contact',''), i.get('email',''), i.get('phone',''), i.get('website',''), i.get('project_map',''), i.get('notes',''), m_val, i.get('id', str(uuid.uuid4()))])
     try: sheet.clear(); sheet.update(rows)
     except: time.sleep(2); sheet.clear(); sheet.update(rows)
-    clear_data_cache() # Cache legen na opslaan
+    clear_data_cache()
 
 def update_single_lead(updated_lead):
-    # Eerst lokale update
     found = False
     for col_key, leads in st.session_state['leads_data'].items():
         for i, lead in enumerate(leads):
@@ -185,7 +182,7 @@ def update_single_lead(updated_lead):
 def fix_missing_ids():
     sheet = get_sheet("Sheet1")
     if not sheet: return
-    records = sheet.get_all_records() # Geen cache hier, we willen verse data fixen
+    records = sheet.get_all_records()
     rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'Onderhoud', 'ID']]
     seen = set(); change = False
     for r in records:
@@ -207,7 +204,7 @@ def add_task(klant, taak, categorie, deadline, prioriteit, notities):
     sheet = get_sheet("Taken")
     row = ["FALSE", klant, taak, categorie, str(deadline), prioriteit, notities, str(uuid.uuid4())]
     sheet.append_row(row)
-    clear_data_cache() # Belangrijk: cache legen zodat nieuwe taak zichtbaar wordt
+    clear_data_cache()
 
 def add_batch_tasks(tasks_list):
     sheet = get_sheet("Taken")
@@ -219,7 +216,7 @@ def add_batch_tasks(tasks_list):
 
 def update_task_data(task_id, new_data):
     sheet = get_sheet("Taken")
-    records = sheet.get_all_records() # Hier geen cache gebruiken om zeker te zijn van index
+    records = sheet.get_all_records()
     for i, row in enumerate(records):
         if str(row.get('ID')) == task_id:
             sheet.update_cell(i + 2, 2, new_data['Klant'])
@@ -662,8 +659,13 @@ with tab_hours:
             except: continue
 
     calendar_options = {
-        "headerToolbar": {"left": "today prev,next", "center": "title", "right": "dayGridMonth,timeGridWeek,timeGridDay"},
-        "initialView": "dayGridMonth", "selectable": True,
+        "headerToolbar": {
+            "left": "today prev,next",
+            "center": "title",
+            "right": "dayGridMonth" # Alleen maandoverzicht
+        },
+        "initialView": "dayGridMonth",
+        "selectable": True,
     }
     
     if 'calendar' in globals():
