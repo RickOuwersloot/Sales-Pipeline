@@ -8,13 +8,6 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import date, datetime
 
-# --- NIEUWE IMPORT VOOR KALENDER ---
-# Zorg dat je 'pip install streamlit-calendar' hebt gedaan!
-try:
-    from streamlit_calendar import calendar
-except ImportError:
-    st.error("Installeer de kalender plugin: pip install streamlit-calendar")
-
 # --- 1. CONFIGURATIE ---
 st.set_page_config(
     page_title="RO Marketing CRM", 
@@ -22,6 +15,12 @@ st.set_page_config(
     layout="wide", 
     initial_sidebar_state="auto" 
 )
+
+# --- KALENDER IMPORT ---
+try:
+    from streamlit_calendar import calendar
+except ImportError:
+    st.error("⚠️ Plugin mist. Voeg 'streamlit-calendar' toe aan requirements.txt")
 
 # ==========================================
 # 🔐 BEVEILIGING
@@ -56,22 +55,16 @@ THEME_COLOR = "#ff6b6b"
 st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
-
     .stApp {{ font-family: 'Montserrat', sans-serif !important; }}
     p, input, textarea, .stMarkdown, h1, h2, h3, h4, h5, h6, .stSelectbox, .stTextInput, .stDateInput, .stNumberInput {{ 
         font-family: 'Montserrat', sans-serif !important; 
     }}
-    
     button, i, span[class^="material-symbols"] {{ font-family: inherit !important; }}
-    [data-testid="stSidebarCollapsedControl"] button,
-    [data-testid="stSidebarExpandedControl"] button {{ font-family: "Source Sans Pro", sans-serif !important; }}
-
     h1, h2, h3, .stHeading, .st-emotion-cache-10trblm {{
         font-family: 'Dela Gothic One', cursive !important;
         letter-spacing: 1px;
         font-weight: 400 !important;
     }}
-
     .stApp {{ background-color: #0E1117; }}
     .block-container {{ max_width: 100% !important; padding: 2rem; }}
     
@@ -83,13 +76,11 @@ st.markdown(f"""
     }}
     .stTabs [aria-selected="true"] {{ background-color: {THEME_COLOR} !important; color: white !important; }}
 
-    /* METRICS BOX */
+    /* METRICS & KANBAN */
     div[data-testid="metric-container"] {{
         background-color: #25262b; border: 1px solid #333; padding: 20px; border-radius: 10px; color: white;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 10px;
     }}
-    
-    /* KANBAN */
     div[class*="stSortable"] {{ display: flex; flex-direction: row; overflow-x: auto; gap: 15px; padding-bottom: 20px; }}
     div[class*="stSortable"] > div {{
         display: flex; flex-direction: column; flex: 0 0 auto; width: 300px;
@@ -100,10 +91,6 @@ st.markdown(f"""
         border: 1px solid {THEME_COLOR} !important; border-left: 6px solid {THEME_COLOR} !important; 
         margin-bottom: 8px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
     }}
-    div[class*="stSortable"] > div > div:hover {{
-        background-color: #363c4e !important; border-color: #ff9e9e !important; transform: translateY(-2px);
-    }}
-
     @media (max-width: 768px) {{
         .block-container {{ padding: 1rem 0.5rem !important; }}
         h1 {{ font-size: 1.8rem !important; }}
@@ -113,7 +100,7 @@ st.markdown(f"""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. GOOGLE SHEETS VERBINDING ---
+# --- 3. GOOGLE SHEETS VERBINDING (GECACHE) ---
 @st.cache_resource
 def get_google_client():
     try:
@@ -133,19 +120,23 @@ def get_sheet(sheet_name="Sheet1"):
         except: return None
     return None
 
-# --- ROBUUSTE DATA FUNCTIE ---
-def robust_get_all_records(sheet):
-    if not sheet: return []
-    for attempt in range(3):
-        try: return sheet.get_all_records()
-        except Exception: time.sleep(1)
-    return []
+# --- CRUCIALE FUNCTIE: CLEAR CACHE ---
+def clear_data_cache():
+    """Gooit het geheugen leeg zodat we verse data krijgen."""
+    st.cache_data.clear()
 
-# --- PIPELINE FUNCTIES ---
+# --- DATALOADERS (NU MET CACHING VOOR SNELHEID) ---
+# TTL=600 betekent: onthoud data 10 minuten, tenzij we clear_data_cache aanroepen
+@st.cache_data(ttl=600) 
+def get_all_records_cached(sheet_name):
+    sheet = get_sheet(sheet_name)
+    if not sheet: return []
+    try: return sheet.get_all_records()
+    except: time.sleep(1); return sheet.get_all_records()
+
+# --- PIPELINE LOGICA ---
 def load_pipeline_data():
-    sheet = get_sheet("Sheet1")
-    if not sheet: return None
-    records = robust_get_all_records(sheet)
+    records = get_all_records_cached("Sheet1")
     if not records: return None
 
     data_structure = {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
@@ -154,17 +145,12 @@ def load_pipeline_data():
         if row.get('Bedrijf'):
             raw_id = str(row.get('ID', '')).strip()
             has_maint = str(row.get('Onderhoud', '')).upper() == 'TRUE'
-            
             lead = {
                 'id': raw_id if raw_id else str(uuid.uuid4()), 
-                'name': row.get('Bedrijf'), 
-                'price': row.get('Prijs'),
-                'contact': row.get('Contact'), 
-                'email': row.get('Email'),
-                'phone': row.get('Telefoon'), 
-                'website': row.get('Website'),        
-                'project_map': row.get('Projectmap'), 
-                'notes': row.get('Notities'),
+                'name': row.get('Bedrijf'), 'price': row.get('Prijs'),
+                'contact': row.get('Contact'), 'email': row.get('Email'),
+                'phone': row.get('Telefoon'), 'website': row.get('Website'),        
+                'project_map': row.get('Projectmap'), 'notes': row.get('Notities'),
                 'maintenance': has_maint
             }
             col_key = status_map.get(row.get('Status', 'Te benaderen'), 'col1')
@@ -180,31 +166,26 @@ def save_pipeline_data(leads_data):
         st_txt = col_map.get(col_key, 'Te benaderen')
         for i in items:
             m_val = "TRUE" if i.get('maintenance') else "FALSE"
-            rows.append([
-                st_txt, i.get('name',''), i.get('price',''), i.get('contact',''), 
-                i.get('email',''), i.get('phone',''), i.get('website',''), 
-                i.get('project_map',''), i.get('notes',''), m_val, i.get('id', str(uuid.uuid4()))
-            ])
+            rows.append([st_txt, i.get('name',''), i.get('price',''), i.get('contact',''), i.get('email',''), i.get('phone',''), i.get('website',''), i.get('project_map',''), i.get('notes',''), m_val, i.get('id', str(uuid.uuid4()))])
     try: sheet.clear(); sheet.update(rows)
     except: time.sleep(2); sheet.clear(); sheet.update(rows)
+    clear_data_cache() # Cache legen na opslaan
 
 def update_single_lead(updated_lead):
+    # Eerst lokale update
     found = False
     for col_key, leads in st.session_state['leads_data'].items():
         for i, lead in enumerate(leads):
             if lead['id'] == updated_lead['id']:
                 st.session_state['leads_data'][col_key][i] = updated_lead
-                found = True
-                break
+                found = True; break
         if found: break
-    if found:
-        save_pipeline_data(st.session_state['leads_data'])
+    if found: save_pipeline_data(st.session_state['leads_data'])
 
 def fix_missing_ids():
     sheet = get_sheet("Sheet1")
     if not sheet: return
-    try: records = sheet.get_all_records()
-    except: return
+    records = sheet.get_all_records() # Geen cache hier, we willen verse data fixen
     rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'Onderhoud', 'ID']]
     seen = set(); change = False
     for r in records:
@@ -212,112 +193,98 @@ def fix_missing_ids():
         if not cid or cid in seen: nid = str(uuid.uuid4()); r['ID'] = nid; change = True
         else: nid = cid
         seen.add(nid)
-        rows.append([
-            r.get('Status',''), r.get('Bedrijf',''), r.get('Prijs',''), r.get('Contact',''), 
-            r.get('Email',''), r.get('Telefoon',''), r.get('Website',''), 
-            r.get('Projectmap',''), r.get('Notities',''), r.get('Onderhoud','FALSE'), nid
-        ])
-    if change: sheet.clear(); sheet.update(rows); st.success("IDs fixed!"); st.cache_resource.clear(); st.rerun()
+        rows.append([r.get('Status',''), r.get('Bedrijf',''), r.get('Prijs',''), r.get('Contact',''), r.get('Email',''), r.get('Telefoon',''), r.get('Website',''), r.get('Projectmap',''), r.get('Notities',''), r.get('Onderhoud','FALSE'), nid])
+    if change: 
+        sheet.clear(); sheet.update(rows); clear_data_cache(); st.success("IDs fixed!"); st.rerun()
     else: st.toast("IDs OK")
 
-# --- TAKEN FUNCTIES ---
+# --- TAKEN LOGICA ---
 def load_tasks():
-    sheet = get_sheet("Taken")
-    if not sheet: return []
-    records = robust_get_all_records(sheet)
+    records = get_all_records_cached("Taken")
     return [r for r in records if r.get('ID')]
 
 def add_task(klant, taak, categorie, deadline, prioriteit, notities):
     sheet = get_sheet("Taken")
-    if not sheet: st.error("Maak tabblad 'Taken' aan!"); return
     row = ["FALSE", klant, taak, categorie, str(deadline), prioriteit, notities, str(uuid.uuid4())]
-    try: sheet.append_row(row)
-    except: time.sleep(1); sheet.append_row(row)
+    sheet.append_row(row)
+    clear_data_cache() # Belangrijk: cache legen zodat nieuwe taak zichtbaar wordt
 
 def add_batch_tasks(tasks_list):
     sheet = get_sheet("Taken")
-    if not sheet: st.error("Tabblad Taken mist"); return
     rows_to_add = []
     for t in tasks_list:
         rows_to_add.append(["FALSE", t['klant'], t['taak'], t['cat'], str(t['deadline']), t['prio'], "", str(uuid.uuid4())])
-    try: sheet.append_rows(rows_to_add)
-    except: time.sleep(1); sheet.append_rows(rows_to_add)
+    sheet.append_rows(rows_to_add)
+    clear_data_cache()
 
 def update_task_data(task_id, new_data):
     sheet = get_sheet("Taken")
-    if not sheet: return
-    records = sheet.get_all_records()
+    records = sheet.get_all_records() # Hier geen cache gebruiken om zeker te zijn van index
     for i, row in enumerate(records):
         if str(row.get('ID')) == task_id:
-            try:
-                sheet.update_cell(i + 2, 2, new_data['Klant'])
-                sheet.update_cell(i + 2, 3, new_data['Taak'])
-                sheet.update_cell(i + 2, 4, new_data['Categorie'])
-                sheet.update_cell(i + 2, 5, str(new_data['Deadline']))
-                sheet.update_cell(i + 2, 6, new_data['Prioriteit'])
-                sheet.update_cell(i + 2, 7, new_data['Notities'])
-            except: st.error("Fout bij opslaan."); return
-            return
+            sheet.update_cell(i + 2, 2, new_data['Klant'])
+            sheet.update_cell(i + 2, 3, new_data['Taak'])
+            sheet.update_cell(i + 2, 4, new_data['Categorie'])
+            sheet.update_cell(i + 2, 5, str(new_data['Deadline']))
+            sheet.update_cell(i + 2, 6, new_data['Prioriteit'])
+            sheet.update_cell(i + 2, 7, new_data['Notities'])
+            clear_data_cache(); return
 
 def toggle_task_status(task_id, current_status):
     sheet = get_sheet("Taken")
-    if not sheet: return
     records = sheet.get_all_records()
     for i, row in enumerate(records):
         if str(row.get('ID')) == task_id:
             new_val = "TRUE" if current_status == "FALSE" else "FALSE"
-            try: sheet.update_cell(i + 2, 1, new_val)
-            except: time.sleep(1); sheet.update_cell(i + 2, 1, new_val)
-            return
+            sheet.update_cell(i + 2, 1, new_val)
+            clear_data_cache(); return
 
 def delete_completed_tasks():
     sheet = get_sheet("Taken")
-    if not sheet: return
     records = sheet.get_all_records()
     rows = [['Status', 'Klant', 'Taak', 'Categorie', 'Deadline', 'Prioriteit', 'Notities', 'ID']]
     for r in records:
         if str(r.get('Status')).upper() != "TRUE":
             rows.append([r.get('Status'), r.get('Klant'), r.get('Taak'), r.get('Categorie'), r.get('Deadline'), r.get('Prioriteit'), r.get('Notities'), r.get('ID')])
     sheet.clear(); sheet.update(rows)
+    clear_data_cache()
 
 def delete_single_task(task_id):
     sheet = get_sheet("Taken")
-    if not sheet: return
     records = sheet.get_all_records()
     rows = [['Status', 'Klant', 'Taak', 'Categorie', 'Deadline', 'Prioriteit', 'Notities', 'ID']]
     for r in records:
         if str(r.get('ID')) != task_id:
             rows.append([r.get('Status'), r.get('Klant'), r.get('Taak'), r.get('Categorie'), r.get('Deadline'), r.get('Prioriteit'), r.get('Notities'), r.get('ID')])
     sheet.clear(); sheet.update(rows)
+    clear_data_cache()
 
-# --- UREN FUNCTIES ---
+# --- UREN LOGICA ---
 def load_hours():
-    sheet = get_sheet("Uren")
-    if not sheet: return []
-    records = robust_get_all_records(sheet)
+    records = get_all_records_cached("Uren")
     return [r for r in records if r.get('ID')]
 
 def save_queued_hours(queue):
     sheet = get_sheet("Uren")
-    if not sheet: st.error("Tabblad 'Uren' niet gevonden!"); return False
     rows = []
     for h in queue:
         totaal = float(h['uren']) * HOURLY_RATE
         rows.append([str(h['datum']), h['klant'], float(h['uren']), h['desc'], HOURLY_RATE, totaal, str(uuid.uuid4())])
-    try: sheet.append_rows(rows); return True
+    try: 
+        sheet.append_rows(rows)
+        clear_data_cache(); return True
     except: return False
 
 def delete_hour_entry(entry_id):
     sheet = get_sheet("Uren")
-    if not sheet: return
     records = sheet.get_all_records()
     rows = [['Datum', 'Klant', 'Uren', 'Omschrijving', 'Tarief', 'Totaal', 'ID']]
     for r in records:
         if str(r.get('ID')) != entry_id:
             rows.append([r['Datum'], r['Klant'], r['Uren'], r['Omschrijving'], r['Tarief'], r['Totaal'], r['ID']])
     sheet.clear(); sheet.update(rows)
+    clear_data_cache()
 
-# --- HELPER ---
 def parse_price(price_str):
     if not price_str: return 0.0
     clean = str(price_str).replace('€', '').replace('.', '').replace(',', '.').strip().split(' ')[0]
@@ -338,6 +305,11 @@ all_companies.sort()
 
 # --- APP LAYOUT ---
 st.title("🚀 RO Marketing CRM")
+# Knop om handmatig alles te verversen
+if st.button("🔄 Ververs Data", help="Haal de nieuwste gegevens op uit Google Sheets"):
+    clear_data_cache()
+    st.rerun()
+
 tab_dash, tab_pipeline, tab_tasks, tab_hours = st.tabs(["📈 Dashboard", "📊 Pipeline", "✅ Projecten & Taken", "⏱️ Uren & Tijd"])
 
 # ================= TAB 1: DASHBOARD =================
@@ -646,11 +618,8 @@ with tab_hours:
     st.header("⏱️ Urenregistratie")
     st.markdown(f"**Vast Tarief:** €{HOURLY_RATE} / uur")
     
-    # 1. INPUT FORMULIER
     with st.container(border=True):
         st.subheader("✍️ Tijd Schrijven")
-        
-        # We gebruiken hier st.form NIET meer, zodat we direct in de lijst kunnen updaten
         h1, h2, h3 = st.columns([2, 1, 2])
         with h1: 
             hk = st.selectbox("Klant", all_companies, key="hour_client")
@@ -659,94 +628,55 @@ with tab_hours:
             hu = st.number_input("Uren", min_value=0.0, step=0.25, format="%.2f", key="hour_amount")
         with h3: 
             hdc = st.text_input("Omschrijving", key="hour_desc")
-            st.write("") # Spacer
+            st.write("") 
             if st.button("➕ Voeg toe aan lijst", use_container_width=True):
                 if hu > 0:
-                    st.session_state['hour_queue'].append({
-                        "klant": hk, "datum": hd, "uren": hu, "desc": hdc
-                    })
+                    st.session_state['hour_queue'].append({"klant": hk, "datum": hd, "uren": hu, "desc": hdc})
                     st.success("Toegevoegd aan wachtrij!")
-                else:
-                    st.error("Vul aantal uren in!")
+                else: st.error("Vul aantal uren in!")
 
-    # 2. DE WACHTRIJ (QUEUE)
     if st.session_state['hour_queue']:
         st.write("---")
         st.subheader(f"⏳ Klaar om op te slaan ({len(st.session_state['hour_queue'])})")
-        
-        # Toon de wachtrij als een nette tabel
         q_df = pd.DataFrame(st.session_state['hour_queue'])
         st.table(q_df)
-        
-        # OPSLAAN KNOP
         if st.button("💾 Alles Opslaan naar Google Sheets", type="primary", use_container_width=True):
             if save_queued_hours(st.session_state['hour_queue']):
-                st.session_state['hour_queue'] = [] # Leegmaken na succes
-                st.success("✅ Alles succesvol opgeslagen!")
-                time.sleep(1)
-                st.rerun()
-            else:
-                st.error("Fout bij opslaan. Probeer opnieuw.")
-                
-        # LEEGMAKEN KNOP
+                st.session_state['hour_queue'] = [] 
+                st.success("✅ Alles succesvol opgeslagen!"); time.sleep(1); st.rerun()
+            else: st.error("Fout bij opslaan.")
         if st.button("❌ Wachtrij wissen"):
-            st.session_state['hour_queue'] = []
-            st.rerun()
+            st.session_state['hour_queue'] = []; st.rerun()
 
-    # 3. KALENDER VIEW (ALLEEN WEERGAVE)
     st.divider()
     st.subheader("📅 Kalender Overzicht")
-    
-    # Haal alle uren op en converteer naar kalender-events
     all_hours_data = load_hours()
     calendar_events = []
-    
     if all_hours_data:
         for h in all_hours_data:
-            # We maken een event voor elke urenregistratie
-            # Titel: Klantnaam (X uur)
-            # Datum: De datum uit de sheet
             try:
-                evt = {
-                    "title": f"{h['Klant']} ({h['Uren']}u)",
-                    "start": h['Datum'],
-                    "allDay": True,
-                    # Optioneel: geef verschillende kleuren per klant of een standaard kleur
-                    "backgroundColor": THEME_COLOR,
-                    "borderColor": THEME_COLOR
-                }
+                d_str = str(h['Datum'])
+                iso_date = pd.to_datetime(d_str, dayfirst=True).strftime('%Y-%m-%d')
+                evt = {"title": f"{h['Klant']} ({h['Uren']}u)", "start": iso_date, "allDay": True, "backgroundColor": THEME_COLOR, "borderColor": THEME_COLOR}
                 calendar_events.append(evt)
-            except:
-                continue
+            except: continue
 
-    # Kalender configuratie
     calendar_options = {
-        "headerToolbar": {
-            "left": "today prev,next",
-            "center": "title",
-            "right": "dayGridMonth,timeGridWeek,timeGridDay"
-        },
-        "initialView": "dayGridMonth",
-        "selectable": True,
+        "headerToolbar": {"left": "today prev,next", "center": "title", "right": "dayGridMonth,timeGridWeek,timeGridDay"},
+        "initialView": "dayGridMonth", "selectable": True,
     }
     
     if 'calendar' in globals():
         calendar(events=calendar_events, options=calendar_options)
     
-    # 4. HET OUDE LIJST OVERZICHT (ALS BACKUP)
     with st.expander("📜 Bekijk als Lijst"):
         hf = st.selectbox("🔍 Filter overzicht op klant:", ["Alle Klanten"] + all_companies, key="hour_overview_filter")
-        
         fh = [h for h in all_hours_data if h.get('Klant') == hf] if hf != "Alle Klanten" else all_hours_data
-        
-        # Totalen voor de selectie
         th = sum([float(h.get('Uren', 0)) for h in fh])
         tm = sum([float(h.get('Totaal', 0)) for h in fh])
-        
         m1, m2 = st.columns(2)
         m1.metric("Totaal Uren (Selectie)", f"{th:.2f} uur")
         m2.metric("Totale Waarde (Selectie)", f"€ {tm:,.2f}")
-        
         for e in reversed(fh):
             with st.container(border=True):
                 ca, cb, cc, cd = st.columns([1.5, 4, 1.5, 1])
