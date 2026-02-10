@@ -2,3 +2,4 @@ streamlit
 streamlit-sortables
 gspread
 google-auth
+streamlit-calendar
