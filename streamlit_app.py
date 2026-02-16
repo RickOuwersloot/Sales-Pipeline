@@ -679,6 +679,25 @@ with tab_hours:
         m1, m2 = st.columns(2)
         m1.metric("Totaal Uren (Selectie)", f"{th:.2f} uur")
         m2.metric("Totale Waarde (Selectie)", f"€ {tm:,.2f}")
+        
+        # --- HIER IS DE NIEUWE DOWNLOAD KNOP ---
+        if fh:
+            # 1. Maak een mooie DataFrame voor export
+            df_export = pd.DataFrame(fh)
+            # Alleen de relevante kolommen voor de klant
+            df_export = df_export[['Datum', 'Omschrijving', 'Uren', 'Tarief', 'Totaal']]
+            
+            # CSV maken
+            csv = df_export.to_csv(index=False).encode('utf-8')
+            
+            st.download_button(
+                label=f"📥 Download Urenspecificatie voor {hf}",
+                data=csv,
+                file_name=f"Urenregistratie_{hf}_{date.today()}.csv",
+                mime="text/csv",
+            )
+        # ---------------------------------------
+
         for e in reversed(fh):
             with st.container(border=True):
                 ca, cb, cc, cd = st.columns([1.5, 4, 1.5, 1])
