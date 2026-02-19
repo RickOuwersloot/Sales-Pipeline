@@ -293,6 +293,7 @@ def delete_hour_entry(entry_id):
 # --- INSPIRATIE LOGICA ---
 def load_inspirations():
     records = get_all_records_cached("Inspiratie")
+    # Veilige controle: zorg dat we alleen records pakken met een ID en we voorkomen KeyErrors
     return [r for r in records if r.get('ID')]
 
 def add_inspiration(naam, url, notitie, tag):
@@ -309,7 +310,7 @@ def delete_inspiration(entry_id):
     rows = [['Naam', 'URL', 'Notitie', 'Tag', 'ID']]
     for r in records:
         if str(r.get('ID')) != entry_id:
-            rows.append([r.get('Naam'), r.get('URL'), r.get('Notitie'), r.get('Tag'), r.get('ID')])
+            rows.append([r.get('Naam', ''), r.get('URL', ''), r.get('Notitie', ''), r.get('Tag', ''), r.get('ID', '')])
     sheet.clear(); sheet.update(rows)
     clear_data_cache()
 
@@ -339,7 +340,6 @@ if st.button("🔄 Ververs Data", help="Haal de nieuwste gegevens op uit Google 
     clear_data_cache()
     st.rerun()
 
-# 5 TABBLADEN NU
 tab_dash, tab_pipeline, tab_tasks, tab_hours, tab_inspire = st.tabs(["📈 Dashboard", "📊 Pipeline", "✅ Projecten & Taken", "⏱️ Uren & Tijd", "💡 Inspiratie"])
 
 # ================= TAB 1: DASHBOARD =================
@@ -643,7 +643,7 @@ with tab_tasks:
     if st.button("🧹 Voltooide taken verwijderen", key="del_completed_tasks"):
         delete_completed_tasks(); st.success("Opgeruimd!"); st.rerun()
 
-# ================= TAB 4: UREN =================
+# ================= TAB 4: UREN (BATCHING UPDATE) =================
 with tab_hours:
     st.header("⏱️ Urenregistratie")
     st.markdown(f"**Vast Tarief:** €{HOURLY_RATE} / uur")
@@ -685,9 +685,9 @@ with tab_hours:
     if all_hours_data:
         for h in all_hours_data:
             try:
-                d_str = str(h['Datum'])
+                d_str = str(h.get('Datum', ''))
                 iso_date = pd.to_datetime(d_str, dayfirst=True).strftime('%Y-%m-%d')
-                evt = {"title": f"{h['Klant']} ({h['Uren']}u)", "start": iso_date, "allDay": True, "backgroundColor": THEME_COLOR, "borderColor": THEME_COLOR}
+                evt = {"title": f"{h.get('Klant', '')} ({h.get('Uren', 0)}u)", "start": iso_date, "allDay": True, "backgroundColor": THEME_COLOR, "borderColor": THEME_COLOR}
                 calendar_events.append(evt)
             except: continue
 
@@ -713,7 +713,6 @@ with tab_hours:
         m1.metric("Totaal Uren (Selectie)", f"{th:.2f} uur")
         m2.metric("Totale Waarde (Selectie)", f"€ {tm:,.2f}")
         
-        # EXPORT KNOPPEN (Geavanceerde Excel)
         if fh:
             import io
             df_export = pd.DataFrame(fh)
@@ -765,11 +764,13 @@ with tab_hours:
         for e in reversed(fh):
             with st.container(border=True):
                 ca, cb, cc, cd = st.columns([1.5, 4, 1.5, 1])
-                with ca: st.caption(e['Datum']); st.write(f"**{e['Klant']}**")
-                with cb: st.write(e['Omschrijving'])
-                with cc: st.markdown(f"**{e['Uren']}u** (€{e['Totaal']})")
+                with ca: st.caption(e.get('Datum', '')); st.write(f"**{e.get('Klant', '')}**")
+                with cb: st.write(e.get('Omschrijving', ''))
+                with cc: st.markdown(f"**{e.get('Uren', 0)}u** (€{e.get('Totaal', 0)})")
                 with cd:
-                    if st.button("🗑️", key=f"del_h_{e['ID']}"): delete_hour_entry(e['ID']); st.rerun()
+                    if st.button("🗑️", key=f"del_h_{e.get('ID', uuid.uuid4())}"): 
+                        delete_hour_entry(e.get('ID', ''))
+                        st.rerun()
 
 # ================= TAB 5: INSPIRATIE =================
 with tab_inspire:
@@ -811,18 +812,32 @@ with tab_inspire:
         cols = st.columns(3)
         for index, insp in enumerate(disp_insp):
             with cols[index % 3]: # Verdeel over de 3 kolommen
+                
+                # VEILIG GEGEVENS OPHALEN (HUFTERPROOF)
+                naam = insp.get('Naam', 'Naamloos')
+                tag = insp.get('Tag', 'Geen')
+                notitie = insp.get('Notitie', '')
+                url = str(insp.get('URL', ''))
+                insp_id = insp.get('ID', str(index))
+                
                 st.markdown(f"""
                 <div class="inspi-card">
-                    <h4 style="margin-top: 0; color: white;">{insp['Naam']}</h4>
-                    <span style="background:#333;padding:4px 8px;border-radius:4px;font-size:0.8em;border:1px solid #444; color: #eee;">🏷️ {insp.get('Tag', 'Geen')}</span>
-                    <p style="margin-top: 10px; font-size: 0.9em; color: #ccc;">{insp.get('Notitie', '')}</p>
+                    <h4 style="margin-top: 0; color: white;">{naam}</h4>
+                    <span style="background:#333;padding:4px 8px;border-radius:4px;font-size:0.8em;border:1px solid #444; color: #eee;">🏷️ {tag}</span>
+                    <p style="margin-top: 10px; font-size: 0.9em; color: #ccc;">{notitie}</p>
                 </div>
                 """, unsafe_allow_html=True)
                 
                 c_btn, c_del = st.columns([3, 1])
-                url = str(insp['URL'])
-                if not url.startswith('http'): url = 'https://' + url
-                c_btn.link_button("🔗 Bezoek Website", url, use_container_width=True)
-                if c_del.button("🗑️", key=f"del_insp_{insp['ID']}", use_container_width=True):
-                    delete_inspiration(insp['ID'])
+                
+                if url and not url.startswith('http'): 
+                    url = 'https://' + url
+                    
+                if url:
+                    c_btn.link_button("🔗 Bezoek Website", url, use_container_width=True)
+                else:
+                    c_btn.button("Geen link", disabled=True, use_container_width=True)
+                    
+                if c_del.button("🗑️", key=f"del_insp_{insp_id}", use_container_width=True):
+                    delete_inspiration(insp_id)
                     st.rerun()
