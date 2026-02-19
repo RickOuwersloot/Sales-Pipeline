@@ -50,6 +50,7 @@ if not check_password():
 TASK_CATEGORIES = ["Website Bouw", "Content", "Administratie", "Meeting", "Overig"]
 HOURLY_RATE = 30.0
 THEME_COLOR = "#ff6b6b"
+INSPIRATION_TAGS = ["Algemeen", "Hovenier", "Aannemer", "E-commerce", "Portfolio", "Zakelijke Dienstverlening", "Horeca", "Anders"]
 
 # --- 2. CSS STYLING ---
 st.markdown(f"""
@@ -91,6 +92,13 @@ st.markdown(f"""
         border: 1px solid {THEME_COLOR} !important; border-left: 6px solid {THEME_COLOR} !important; 
         margin-bottom: 8px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
     }}
+    
+    /* INSPIRATIE KAARTJES */
+    .inspi-card {{
+        background-color: #25262b; border: 1px solid #333; border-left: 4px solid {THEME_COLOR};
+        padding: 15px; border-radius: 8px; margin-bottom: 10px;
+    }}
+    
     @media (max-width: 768px) {{
         .block-container {{ padding: 1rem 0.5rem !important; }}
         h1 {{ font-size: 1.8rem !important; }}
@@ -282,6 +290,30 @@ def delete_hour_entry(entry_id):
     sheet.clear(); sheet.update(rows)
     clear_data_cache()
 
+# --- INSPIRATIE LOGICA ---
+def load_inspirations():
+    records = get_all_records_cached("Inspiratie")
+    return [r for r in records if r.get('ID')]
+
+def add_inspiration(naam, url, notitie, tag):
+    sheet = get_sheet("Inspiratie")
+    if not sheet: st.error("Maak het tabblad 'Inspiratie' aan in je Google Sheet!"); return
+    row = [naam, url, notitie, tag, str(uuid.uuid4())]
+    try: sheet.append_row(row); clear_data_cache(); return True
+    except: time.sleep(1); sheet.append_row(row); clear_data_cache(); return True
+
+def delete_inspiration(entry_id):
+    sheet = get_sheet("Inspiratie")
+    if not sheet: return
+    records = sheet.get_all_records()
+    rows = [['Naam', 'URL', 'Notitie', 'Tag', 'ID']]
+    for r in records:
+        if str(r.get('ID')) != entry_id:
+            rows.append([r.get('Naam'), r.get('URL'), r.get('Notitie'), r.get('Tag'), r.get('ID')])
+    sheet.clear(); sheet.update(rows)
+    clear_data_cache()
+
+# --- HELPER ---
 def parse_price(price_str):
     if not price_str: return 0.0
     clean = str(price_str).replace('€', '').replace('.', '').replace(',', '.').strip().split(' ')[0]
@@ -307,7 +339,8 @@ if st.button("🔄 Ververs Data", help="Haal de nieuwste gegevens op uit Google 
     clear_data_cache()
     st.rerun()
 
-tab_dash, tab_pipeline, tab_tasks, tab_hours = st.tabs(["📈 Dashboard", "📊 Pipeline", "✅ Projecten & Taken", "⏱️ Uren & Tijd"])
+# 5 TABBLADEN NU
+tab_dash, tab_pipeline, tab_tasks, tab_hours, tab_inspire = st.tabs(["📈 Dashboard", "📊 Pipeline", "✅ Projecten & Taken", "⏱️ Uren & Tijd", "💡 Inspiratie"])
 
 # ================= TAB 1: DASHBOARD =================
 with tab_dash:
@@ -610,7 +643,7 @@ with tab_tasks:
     if st.button("🧹 Voltooide taken verwijderen", key="del_completed_tasks"):
         delete_completed_tasks(); st.success("Opgeruimd!"); st.rerun()
 
-# ================= TAB 4: UREN (BATCHING UPDATE) =================
+# ================= TAB 4: UREN =================
 with tab_hours:
     st.header("⏱️ Urenregistratie")
     st.markdown(f"**Vast Tarief:** €{HOURLY_RATE} / uur")
@@ -671,7 +704,7 @@ with tab_hours:
     if 'calendar' in globals():
         calendar(events=calendar_events, options=calendar_options)
     
-    with st.expander("📜 Bekijk als Lijst"):
+    with st.expander("📜 Bekijk als Lijst & Download"):
         hf = st.selectbox("🔍 Filter overzicht op klant:", ["Alle Klanten"] + all_companies, key="hour_overview_filter")
         fh = [h for h in all_hours_data if h.get('Klant') == hf] if hf != "Alle Klanten" else all_hours_data
         th = sum([float(h.get('Uren', 0)) for h in fh])
@@ -680,23 +713,54 @@ with tab_hours:
         m1.metric("Totaal Uren (Selectie)", f"{th:.2f} uur")
         m2.metric("Totale Waarde (Selectie)", f"€ {tm:,.2f}")
         
-        # --- HIER IS DE NIEUWE DOWNLOAD KNOP ---
+        # EXPORT KNOPPEN (Geavanceerde Excel)
         if fh:
-            # 1. Maak een mooie DataFrame voor export
+            import io
             df_export = pd.DataFrame(fh)
-            # Alleen de relevante kolommen voor de klant
-            df_export = df_export[['Datum', 'Omschrijving', 'Uren', 'Tarief', 'Totaal']]
-            
-            # CSV maken
-            csv = df_export.to_csv(index=False).encode('utf-8')
-            
-            st.download_button(
-                label=f"📥 Download Urenspecificatie voor {hf}",
-                data=csv,
-                file_name=f"Urenregistratie_{hf}_{date.today()}.csv",
-                mime="text/csv",
-            )
-        # ---------------------------------------
+            if not df_export.empty:
+                df_export = df_export[['Datum', 'Omschrijving', 'Uren', 'Tarief', 'Totaal']]
+                st.write("---")
+                st.write("📥 **Download Opties:**")
+                c_csv, c_excel, c_empty = st.columns(3)
+
+                with c_csv:
+                    csv = df_export.to_csv(index=False).encode('utf-8')
+                    st.download_button(label="📄 Download als CSV", data=csv, file_name=f"Uren_{hf}_{date.today()}.csv", mime="text/csv")
+
+                with c_excel:
+                    try:
+                        buffer = io.BytesIO()
+                        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+                            df_export.to_excel(writer, sheet_name='Specificatie', startrow=4, index=False, header=True)
+                            workbook = writer.book
+                            worksheet = writer.sheets['Specificatie']
+                            fmt_titel = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': THEME_COLOR})
+                            fmt_header = workbook.add_format({'bold': True, 'bg_color': '#f0f0f0', 'border': 1})
+                            fmt_currency = workbook.add_format({'num_format': '€ #,##0.00'})
+                            fmt_date = workbook.add_format({'num_format': 'dd-mm-yyyy'})
+                            fmt_total = workbook.add_format({'bold': True, 'num_format': '€ #,##0.00', 'top': 6})
+                            
+                            worksheet.write(0, 0, "Urenspecificatie", fmt_titel)
+                            worksheet.write(1, 0, f"Klant: {hf}")
+                            worksheet.write(2, 0, f"Datum export: {date.today().strftime('%d-%m-%Y')}")
+                            
+                            worksheet.set_column('A:A', 12, fmt_date)
+                            worksheet.set_column('B:B', 50)
+                            worksheet.set_column('C:C', 8)
+                            worksheet.set_column('D:D', 10, fmt_currency)
+                            worksheet.set_column('E:E', 12, fmt_currency)
+                            
+                            for col_num, value in enumerate(df_export.columns.values):
+                                worksheet.write(4, col_num, value, fmt_header)
+                                
+                            last_row = len(df_export) + 5
+                            cell_range = f"E6:E{last_row}" 
+                            worksheet.write(last_row, 3, "TOTAAL:", fmt_header)
+                            worksheet.write_formula(last_row, 4, f"=SUM({cell_range})", fmt_total)
+
+                        st.download_button(label="📊 Download Factuurbijlage (Excel)", data=buffer, file_name=f"Specificatie_{hf}_{date.today()}.xlsx", mime="application/vnd.ms-excel")
+                    except ImportError:
+                        st.error("Installeer 'xlsxwriter' voor Excel export!")
 
         for e in reversed(fh):
             with st.container(border=True):
@@ -706,3 +770,59 @@ with tab_hours:
                 with cc: st.markdown(f"**{e['Uren']}u** (€{e['Totaal']})")
                 with cd:
                     if st.button("🗑️", key=f"del_h_{e['ID']}"): delete_hour_entry(e['ID']); st.rerun()
+
+# ================= TAB 5: INSPIRATIE =================
+with tab_inspire:
+    st.header("💡 Inspiratie Wall")
+    st.markdown("Sla hier mooie websites en slimme ideeën op voor later.")
+    
+    with st.expander("➕ Nieuwe Inspiratie Toevoegen", expanded=False):
+        with st.form("add_inspiration_form"):
+            ic1, ic2 = st.columns(2)
+            with ic1:
+                i_naam = st.text_input("Naam (Bijv. 'Mooie hovenier site')")
+                i_url = st.text_input("URL (Bijv. www.voorbeeld.nl)")
+            with ic2:
+                i_tag = st.selectbox("Categorie (Tag)", INSPIRATION_TAGS)
+                i_note = st.text_area("Waarom is dit tof?")
+            if st.form_submit_button("💾 Opslaan"):
+                if i_naam and i_url:
+                    if add_inspiration(i_naam, i_url, i_note, i_tag):
+                        st.success("Opgeslagen!")
+                        st.rerun()
+                else:
+                    st.error("Vul op zijn minst een naam en URL in.")
+
+    st.divider()
+    
+    # Filteren en weergave
+    i_filt = st.selectbox("🔍 Filter op Tag:", ["Alle Inspiratie"] + INSPIRATION_TAGS, key="inspi_filter")
+    
+    all_insp = load_inspirations()
+    if i_filt != "Alle Inspiratie":
+        disp_insp = [i for i in all_insp if i.get('Tag') == i_filt]
+    else:
+        disp_insp = all_insp
+
+    if not disp_insp:
+        st.info("Nog geen inspiratie gevonden. Tijd om te gaan surfen! 🏄‍♂️")
+    else:
+        # Weergave in een grid (bijv. 3 kolommen)
+        cols = st.columns(3)
+        for index, insp in enumerate(disp_insp):
+            with cols[index % 3]: # Verdeel over de 3 kolommen
+                st.markdown(f"""
+                <div class="inspi-card">
+                    <h4 style="margin-top: 0; color: white;">{insp['Naam']}</h4>
+                    <span style="background:#333;padding:4px 8px;border-radius:4px;font-size:0.8em;border:1px solid #444; color: #eee;">🏷️ {insp.get('Tag', 'Geen')}</span>
+                    <p style="margin-top: 10px; font-size: 0.9em; color: #ccc;">{insp.get('Notitie', '')}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                c_btn, c_del = st.columns([3, 1])
+                url = str(insp['URL'])
+                if not url.startswith('http'): url = 'https://' + url
+                c_btn.link_button("🔗 Bezoek Website", url, use_container_width=True)
+                if c_del.button("🗑️", key=f"del_insp_{insp['ID']}", use_container_width=True):
+                    delete_inspiration(insp['ID'])
+                    st.rerun()
