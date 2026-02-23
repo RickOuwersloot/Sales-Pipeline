@@ -12,7 +12,6 @@ st.set_page_config(
     page_title="RO Marketing CRM", 
     page_icon="Logo RO Marketing.png", 
     layout="wide", 
-    # BELANGRIJK: Moet op expanded staan, anders werkt de CSS hack niet goed bij het laden
     initial_sidebar_state="expanded" 
 )
 
@@ -52,7 +51,7 @@ HOURLY_RATE = 30.0
 THEME_COLOR = "#ff6b6b"
 INSPIRATION_TAGS = ["Algemeen", "Hovenier", "Aannemer", "E-commerce", "Portfolio", "Zakelijke Dienstverlening", "Horeca", "Anders"]
 
-# --- 2. CSS STYLING (GEOPTIMALISEERD VOOR INGEKLAPTE STAAT) ---
+# --- 2. CSS STYLING (PERFECTE 100px HOVER-SIDEBAR) ---
 st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;500;600;700&display=swap');
@@ -70,16 +69,16 @@ st.markdown(f"""
     .stApp {{ background-color: #0E1117; }}
 
     /* =========================================
-       🚀 DE NIEUWE HOVER-SIDEBAR MAGIE 2.0
+       🚀 DE NIEUWE HOVER-SIDEBAR MAGIE 3.0
        ========================================= */
        
     /* 1. Verberg standaard knoppen */
     [data-testid="stSidebarCollapseButton"], [data-testid="stSidebarResizer"] {{ display: none !important; }}
 
-    /* 2. De Sidebar Container */
+    /* 2. De Sidebar Container (Standaard 100px) */
     [data-testid="stSidebar"] {{
         position: fixed !important; left: 0; top: 0; height: 100vh !important;
-        width: 100px !important; min-width: 75px !important; max-width: 260px !important;
+        width: 100px !important; min-width: 100px !important; max-width: 260px !important;
         background-color: #151922 !important; border-right: 1px solid #2b313e !important;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
         overflow-x: hidden !important; z-index: 999999 !important;
@@ -89,38 +88,36 @@ st.markdown(f"""
     [data-testid="stSidebar"]:hover {{ width: 260px !important; min-width: 260px !important; }}
     [data-testid="stSidebar"]::-webkit-scrollbar {{ display: none; }}
 
-    /* Main content opschuiven */
-    .block-container {{ padding-left: 100px !important; padding-top: 2rem !important; max-width: 100% !important; }}
+    /* Main content netjes opschuiven zodat het naast de 100px balk past */
+    .block-container {{ padding-left: 130px !important; padding-top: 2rem !important; max-width: 100% !important; }}
 
-    /* 3. Logo Styling */
+    /* 3. Logo Styling - Links uitgelijnd met 24px padding zodat het matcht met knoppen */
     [data-testid="stSidebar"] [data-testid="stImage"] {{
-        display: flex; justify-content: flex-start; padding-left: 12px; margin-top: 10px;
+        display: flex; justify-content: flex-start; padding-left: 24px; margin-top: 10px;
         transition: all 0.3s ease;
     }}
 
-    /* 4. KNOPPEN STYLING (CRUCIAAL VOOR DE FIX) */
+    /* 4. KNOPPEN STYLING */
     [data-testid="stSidebar"] .stButton > button {{
         width: 100% !important; border: none !important;
-        display: flex !important; flex-direction: row !important; /* Forceer rij */
+        display: flex !important; flex-direction: row !important;
         justify-content: flex-start !important; align-items: center !important;
-        padding: 12px 15px !important;
-        white-space: nowrap !important; /* Tekst nooit afbreken naar nieuwe regel */
-        overflow: hidden !important; /* Alles wat niet past verbergen */
-        transition: all 0.3s ease !important; /* Zorgt voor soepele tekst verschijning */
+        padding: 12px 24px !important; /* Perfect uitgelijnd met logo */
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        transition: all 0.3s ease !important;
     }}
 
-    /* --- DE FIX VOOR DE INGEKLAPTE STAAT --- */
-    /* Als de sidebar NIET gehoverd is (dus smal is) */
+    /* Als de sidebar NIET gehoverd is (100px) -> Verberg tekst */
     [data-testid="stSidebar"]:not(:hover) .stButton > button {{
-        /* Forceer de knop smal, zodat de tekst rechts van het icoon hard wordt afgeknipt door overflow:hidden */
-        max-width: 55px !important; 
+        max-width: 75px !important; /* Dwingt de tekst eraf, houdt alleen ruimte voor padding + icoon */
         padding-right: 0 !important;
     }}
+    
     /* Als de sidebar WEL gehoverd is */
     [data-testid="stSidebar"]:hover .stButton > button {{
-         max-width: 240px !important; /* Geef ruimte terug aan de tekst */
+         max-width: 240px !important;
     }}
-    /* --------------------------------------- */
 
     [data-testid="stSidebar"] .stButton > button p {{
         font-size: 1.1em !important; margin: 0 !important; font-weight: 500 !important;
@@ -138,6 +135,7 @@ st.markdown(f"""
     [data-testid="stSidebar"] .stButton > button[kind="primary"] {{
         background-color: #2b313e !important; color: white !important;
         border-left: 4px solid {THEME_COLOR} !important; border-radius: 0 8px 8px 0 !important;
+        padding-left: 20px !important; /* compenseert voor de 4px border */
     }}
 
     /* OVERIGE STYLING */
@@ -150,7 +148,7 @@ st.markdown(f"""
         padding: 15px; border-radius: 8px; margin-bottom: 10px;
     }}
     @media (max-width: 768px) {{
-        .block-container {{ padding: 1rem 0.5rem !important; padding-left: 80px !important; }}
+        .block-container {{ padding-left: 110px !important; padding-top: 1rem !important; }}
         h1 {{ font-size: 1.8rem !important; }}
     }}
     </style>
@@ -191,7 +189,6 @@ def load_pipeline_data():
     records = get_all_records_cached("Sheet1")
     if not records: return None
 
-    # Jouw 4 vertrouwde bakjes + prullenbak
     data_structure = {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
     
     status_map = {
@@ -270,22 +267,6 @@ def trash_lead(lead_id):
                 save_pipeline_data(st.session_state['leads_data'])
                 st.session_state['selected_lead'] = None
                 st.rerun()
-
-def fix_missing_ids():
-    sheet = get_sheet("Sheet1")
-    if not sheet: return
-    records = sheet.get_all_records()
-    rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'Onderhoud', 'ID']]
-    seen = set(); change = False
-    for r in records:
-        cid = str(r.get('ID','')).strip()
-        if not cid or cid in seen: nid = str(uuid.uuid4()); r['ID'] = nid; change = True
-        else: nid = cid
-        seen.add(nid)
-        rows.append([r.get('Status',''), r.get('Bedrijf',''), r.get('Prijs',''), r.get('Contact',''), r.get('Email',''), r.get('Telefoon',''), r.get('Website',''), r.get('Projectmap',''), r.get('Notities',''), r.get('Onderhoud','FALSE'), nid])
-    if change: 
-        sheet.clear(); sheet.update(rows); clear_data_cache(); st.success("IDs fixed!"); st.rerun()
-    else: st.toast("IDs OK")
 
 # --- TAKEN LOGICA ---
 def load_tasks():
@@ -433,10 +414,10 @@ all_companies.sort()
 
 
 # ==================================================
-# 🌐 DE HOVER SIDEBAR (HTML/CSS/PYTHON HACK)
+# 🌐 DE HOVER SIDEBAR
 # ==================================================
 with st.sidebar:
-    # 1. Klein logo, perfect links (width is nu 45px zodat hij in de 75px balk past)
+    # 1. Klein logo, perfect links (width is nu 45px zodat hij in de 100px balk past)
     try: st.image("Logo RO Marketing.png", width=45)
     except: st.warning("Logo?")
     
@@ -445,10 +426,9 @@ with st.sidebar:
     # 2. De Menuknoppen Functie
     def nav_button(label, icon, page_name):
         is_active = (st.session_state['active_page'] == page_name)
-        # Gebruik unicode em-spaces (\u2003) voor robuustere spacing
+        # Gebruik em-spaces voor veilige ruimte tussen icoon en tekst
         btn_text = f"{icon}\u2003\u2003{label}"
         
-        # Streamlit button: Type "primary" als actief, anders "secondary"
         if st.button(btn_text, key=f"nav_{page_name}", type="primary" if is_active else "secondary"):
             st.session_state['active_page'] = page_name
             st.rerun()
@@ -460,10 +440,11 @@ with st.sidebar:
     nav_button("Uren", "⏱️", "Uren")
     nav_button("Inspiratie", "💡", "Inspiratie")
     
-    # Bottom sectie
+    # Bottom sectie met ALLEEN het icoon voor verversen
     st.markdown("<div style='margin-top: 50px;'></div>", unsafe_allow_html=True)
-    # Ook hier em-spaces voor het verversen icoon
-    if st.button("🔄\u2003\u2003Verversen", help="Haal de nieuwste gegevens op uit Google Sheets"):
+    
+    # Let op: de spaties verwijderd, puur het icoon
+    if st.button("🔄", help="Haal de nieuwste gegevens op uit Google Sheets"):
         clear_data_cache()
         st.rerun()
 
@@ -528,7 +509,6 @@ if st.session_state['active_page'] == 'Dashboard':
 elif st.session_state['active_page'] == 'Pipeline':
     st.title("📊 Pipeline Overzicht")
     
-    # Formulier bovenaan de pagina (in plaats van sidebar)
     with st.expander("➕ Nieuwe Deal Toevoegen", expanded=False):
         with st.form("add_lead_main"):
             c_f1, c_f2 = st.columns(2)
@@ -559,7 +539,6 @@ elif st.session_state['active_page'] == 'Pipeline':
 
     st.write("")
     
-    # De 4 Bakjes
     main_cols = [
         ('col1', 'Te benaderen'), 
         ('col2', 'Opgevolgd'), 
@@ -880,7 +859,7 @@ elif st.session_state['active_page'] == 'Uren':
         "headerToolbar": {
             "left": "today prev,next",
             "center": "title",
-            "right": "dayGridMonth" # Alleen maandoverzicht
+            "right": "dayGridMonth"
         },
         "initialView": "dayGridMonth",
         "selectable": True,
