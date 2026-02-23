@@ -93,7 +93,7 @@ st.markdown(f"""
 
     /* 3. Logo Styling - Links uitgelijnd met 24px padding zodat het matcht met knoppen */
     [data-testid="stSidebar"] [data-testid="stImage"] {{
-        display: flex; justify-content: flex-start; padding-left: 24px; margin-top: 10px;
+        display: flex; justify-content: flex-start; padding-left: opx; margin-top: 10px; min-height:100px;
         transition: all 0.3s ease;
     }}
 
