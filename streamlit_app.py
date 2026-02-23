@@ -79,7 +79,7 @@ st.markdown(f"""
     /* 2. De Sidebar Container */
     [data-testid="stSidebar"] {{
         position: fixed !important; left: 0; top: 0; height: 100vh !important;
-        width: 75px !important; min-width: 75px !important; max-width: 260px !important;
+        width: 100px !important; min-width: 75px !important; max-width: 260px !important;
         background-color: #151922 !important; border-right: 1px solid #2b313e !important;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
         overflow-x: hidden !important; z-index: 999999 !important;
