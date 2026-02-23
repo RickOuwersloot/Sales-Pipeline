@@ -93,7 +93,7 @@ st.markdown(f"""
 
     /* 3. Logo Styling - Links uitgelijnd met 24px padding zodat het matcht met knoppen */
     [data-testid="stSidebar"] [data-testid="stImage"] {{
-        display: flex; justify-content: flex-start; padding-left: 0px; margin-top: 10px;
+        display: flex; justify-content: flex-start; padding-left: 24px; margin-top: 10px;
         transition: all 0.3s ease;
     }}
 
@@ -189,6 +189,7 @@ def load_pipeline_data():
     records = get_all_records_cached("Sheet1")
     if not records: return None
 
+    # Jouw 4 vertrouwde bakjes + prullenbak
     data_structure = {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
     
     status_map = {
@@ -265,8 +266,25 @@ def trash_lead(lead_id):
                 lead_to_move = st.session_state['leads_data'][col_key].pop(i)
                 st.session_state['leads_data']['trash'].insert(0, lead_to_move)
                 save_pipeline_data(st.session_state['leads_data'])
+                # Optioneel: reset de geselecteerde lead als deze weg is gegooid
                 st.session_state['selected_lead'] = None
                 st.rerun()
+
+def fix_missing_ids():
+    sheet = get_sheet("Sheet1")
+    if not sheet: return
+    records = sheet.get_all_records()
+    rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'Onderhoud', 'ID']]
+    seen = set(); change = False
+    for r in records:
+        cid = str(r.get('ID','')).strip()
+        if not cid or cid in seen: nid = str(uuid.uuid4()); r['ID'] = nid; change = True
+        else: nid = cid
+        seen.add(nid)
+        rows.append([r.get('Status',''), r.get('Bedrijf',''), r.get('Prijs',''), r.get('Contact',''), r.get('Email',''), r.get('Telefoon',''), r.get('Website',''), r.get('Projectmap',''), r.get('Notities',''), r.get('Onderhoud','FALSE'), nid])
+    if change: 
+        sheet.clear(); sheet.update(rows); clear_data_cache(); st.success("IDs fixed!"); st.rerun()
+    else: st.toast("IDs OK")
 
 # --- TAKEN LOGICA ---
 def load_tasks():
@@ -414,36 +432,28 @@ all_companies.sort()
 
 
 # ==================================================
-# 🌐 DE HOVER SIDEBAR
+# 🌐 DE HOVER SIDEBAR (HTML/CSS/PYTHON HACK)
 # ==================================================
 with st.sidebar:
-    # 1. Klein logo, perfect links (width is nu 45px zodat hij in de 100px balk past)
     try: st.image("Logo RO Marketing.png", width=45)
     except: st.warning("Logo?")
     
     st.write("") # Spacer
     
-    # 2. De Menuknoppen Functie
     def nav_button(label, icon, page_name):
         is_active = (st.session_state['active_page'] == page_name)
-        # Gebruik em-spaces voor veilige ruimte tussen icoon en tekst
         btn_text = f"{icon}\u2003\u2003{label}"
-        
         if st.button(btn_text, key=f"nav_{page_name}", type="primary" if is_active else "secondary"):
             st.session_state['active_page'] = page_name
             st.rerun()
 
-    # 3. Knoppen tekenen
     nav_button("Dashboard", "📈", "Dashboard")
     nav_button("Pipeline", "📊", "Pipeline")
     nav_button("Projecten", "✅", "Projecten")
     nav_button("Uren", "⏱️", "Uren")
     nav_button("Inspiratie", "💡", "Inspiratie")
     
-    # Bottom sectie met ALLEEN het icoon voor verversen
     st.markdown("<div style='margin-top: 50px;'></div>", unsafe_allow_html=True)
-    
-    # Let op: de spaties verwijderd, puur het icoon
     if st.button("🔄", help="Haal de nieuwste gegevens op uit Google Sheets"):
         clear_data_cache()
         st.rerun()
@@ -612,23 +622,45 @@ elif st.session_state['active_page'] == 'Pipeline':
                 save_pipeline_data(st.session_state['leads_data'])
                 st.rerun()
 
-    # Detailweergave onderaan
+    # --- 3. HET DETAILS/BEWERK GEDEELTE (BUGVRIJ) ---
     st.divider()
     if len(all_leads) > 0:
         c_sel, c_inf = st.columns([1, 2])
         with c_sel:
             st.markdown("#### 🔎 Snel Zoeken / Details")
-            d_opts = {f"{l['name']}": l['id'] for l in all_leads}
             
-            default_index = 0
-            if st.session_state.get('selected_lead') in d_opts.values():
-                default_index = list(d_opts.values()).index(st.session_state['selected_lead'])
+            # Voorkom duplicate keys in dropdown
+            d_opts = {}
+            for l in all_leads:
+                lbl = l['name']
+                if lbl in d_opts: lbl = f"{l['name']} ({l['id'][:4]})"
+                d_opts[lbl] = l['id']
                 
-            sel_name = st.selectbox("Kies een deal:", list(d_opts.keys()), index=default_index, key="pipeline_deal_selector")
-            sel_id = d_opts[sel_name]
+            id_to_label = {v: k for k, v in d_opts.items()}
+            
+            # Callback voor handmatige dropdown actie
+            def on_deal_select():
+                new_lbl = st.session_state['pipeline_deal_selector']
+                st.session_state['selected_lead'] = d_opts[new_lbl]
+                st.session_state['edit_mode'] = False
+
+            # Forceer de selectbox naar de geselecteerde lead (vanuit Bekijk knop)
+            curr_sel = st.session_state.get('selected_lead')
+            if curr_sel and curr_sel in id_to_label:
+                st.session_state['pipeline_deal_selector'] = id_to_label[curr_sel]
+                
+            sel_name = st.selectbox(
+                "Kies een deal:", 
+                list(d_opts.keys()), 
+                key="pipeline_deal_selector",
+                on_change=on_deal_select
+            )
+            
+            sel_id = d_opts.get(sel_name)
             sel = next((l for l in all_leads if l['id'] == sel_id), None)
             
-            if sel_id != st.session_state.get('selected_lead'):
+            # Veiligheid: als selected_lead nog leeg was bij opstarten, sync met de eerste
+            if st.session_state.get('selected_lead') is None and sel_id:
                 st.session_state['selected_lead'] = sel_id
 
         if sel:
@@ -665,12 +697,13 @@ elif st.session_state['active_page'] == 'Pipeline':
                             if sel.get('maintenance'): dn += " 🔧"
                             st.markdown(f"### {dn}")
                         with r2: 
-                            if st.button("✏️ Bewerken", key="btn_edit_mode", use_container_width=True):
+                            if st.button("✏️ Bewerken", key=f"btn_edit_mode_{sel['id']}", use_container_width=True):
                                 st.session_state['edit_mode'] = True; st.rerun()
                         with r3:
                             in_trash = any(l['id'] == sel['id'] for l in st.session_state['leads_data']['trash'])
                             if not in_trash:
-                                if st.button("🗑️ Prullenbak", key="btn_trash", use_container_width=True):
+                                # Dynamische KEY toevoegen voorkomt foute clicks!
+                                if st.button("🗑️ Prullenbak", key=f"btn_trash_{sel['id']}", use_container_width=True):
                                     trash_lead(sel['id'])
                                     
                         st.markdown(f"<h1 style='color:#fff;margin-top:-10px;font-size:2em'>{sel.get('price', '')}</h1>", unsafe_allow_html=True)
