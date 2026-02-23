@@ -12,7 +12,8 @@ st.set_page_config(
     page_title="RO Marketing CRM", 
     page_icon="Logo RO Marketing.png", 
     layout="wide", 
-    initial_sidebar_state="expanded" # Moet op expanded staan voor onze CSS hack
+    # BELANGRIJK: Moet op expanded staan, anders werkt de CSS hack niet goed bij het laden
+    initial_sidebar_state="expanded" 
 )
 
 # --- KALENDER IMPORT ---
@@ -51,7 +52,7 @@ HOURLY_RATE = 30.0
 THEME_COLOR = "#ff6b6b"
 INSPIRATION_TAGS = ["Algemeen", "Hovenier", "Aannemer", "E-commerce", "Portfolio", "Zakelijke Dienstverlening", "Horeca", "Anders"]
 
-# --- 2. CSS STYLING (UITGEBREID VOOR HOVER-SIDEBAR) ---
+# --- 2. CSS STYLING (GEOPTIMALISEERD VOOR INGEKLAPTE STAAT) ---
 st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;500;600;700&display=swap');
@@ -69,95 +70,77 @@ st.markdown(f"""
     .stApp {{ background-color: #0E1117; }}
 
     /* =========================================
-       🚀 DE NIEUWE HOVER-SIDEBAR MAGIE
+       🚀 DE NIEUWE HOVER-SIDEBAR MAGIE 2.0
        ========================================= */
        
-    /* 1. Verberg de standaard Streamlit inklap-knoppen */
-    [data-testid="stSidebarCollapseButton"], [data-testid="stSidebarResizer"] {{
-        display: none !important;
-    }}
+    /* 1. Verberg standaard knoppen */
+    [data-testid="stSidebarCollapseButton"], [data-testid="stSidebarResizer"] {{ display: none !important; }}
 
-    /* 2. De Sidebar zelf: Standaard 75px breed, uitklapbaar bij hover */
+    /* 2. De Sidebar Container */
     [data-testid="stSidebar"] {{
-        position: fixed !important; 
-        left: 0;
-        top: 0;
-        height: 100vh !important;
-        width: 75px !important;
-        min-width: 75px !important;
-        max-width: 260px !important;
-        background-color: #151922 !important;
-        border-right: 1px solid #2b313e !important;
-        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        overflow-x: hidden !important;
-        z-index: 999999 !important;
+        position: fixed !important; left: 0; top: 0; height: 100vh !important;
+        width: 75px !important; min-width: 75px !important; max-width: 260px !important;
+        background-color: #151922 !important; border-right: 1px solid #2b313e !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        overflow-x: hidden !important; z-index: 999999 !important;
     }}
 
-    /* Uitklappen bij hover! */
-    [data-testid="stSidebar"]:hover {{
-        width: 260px !important;
-        min-width: 260px !important;
-    }}
-    
-    /* Verberg scrollbalken in de sidebar voor een strakke look */
+    /* Uitklappen bij hover */
+    [data-testid="stSidebar"]:hover {{ width: 260px !important; min-width: 260px !important; }}
     [data-testid="stSidebar"]::-webkit-scrollbar {{ display: none; }}
 
-    /* Zorg dat de hoofd-app iets opschuift zodat hij niet achter de sidebar valt */
-    .block-container {{
-        padding-left: 100px !important; 
-        padding-top: 2rem !important;
-        max-width: 100% !important;
-    }}
+    /* Main content opschuiven */
+    .block-container {{ padding-left: 100px !important; padding-top: 2rem !important; max-width: 100% !important; }}
 
-    /* 3. Logo netjes links uitgelijnd */
+    /* 3. Logo Styling */
     [data-testid="stSidebar"] [data-testid="stImage"] {{
-        display: flex;
-        justify-content: flex-start;
-        padding-left: 12px;
-        margin-top: 10px;
+        display: flex; justify-content: flex-start; padding-left: 12px; margin-top: 10px;
+        transition: all 0.3s ease;
     }}
 
-    /* 4. Layout van de navigatieknoppen */
+    /* 4. KNOPPEN STYLING (CRUCIAAL VOOR DE FIX) */
     [data-testid="stSidebar"] .stButton > button {{
-        width: 100% !important;
-        border: none !important;
-        display: flex !important;
-        justify-content: flex-start !important; /* Tekst en icoon links uitlijnen */
-        align-items: center !important;
+        width: 100% !important; border: none !important;
+        display: flex !important; flex-direction: row !important; /* Forceer rij */
+        justify-content: flex-start !important; align-items: center !important;
         padding: 12px 15px !important;
-        border-radius: 8px !important;
-        white-space: nowrap !important; /* Zorgt dat de tekst niet op 2 regels breekt als hij dicht is */
-        transition: all 0.2s ease !important;
-        box-shadow: none !important;
+        white-space: nowrap !important; /* Tekst nooit afbreken naar nieuwe regel */
+        overflow: hidden !important; /* Alles wat niet past verbergen */
+        transition: all 0.3s ease !important; /* Zorgt voor soepele tekst verschijning */
     }}
+
+    /* --- DE FIX VOOR DE INGEKLAPTE STAAT --- */
+    /* Als de sidebar NIET gehoverd is (dus smal is) */
+    [data-testid="stSidebar"]:not(:hover) .stButton > button {{
+        /* Forceer de knop smal, zodat de tekst rechts van het icoon hard wordt afgeknipt door overflow:hidden */
+        max-width: 55px !important; 
+        padding-right: 0 !important;
+    }}
+    /* Als de sidebar WEL gehoverd is */
+    [data-testid="stSidebar"]:hover .stButton > button {{
+         max-width: 240px !important; /* Geef ruimte terug aan de tekst */
+    }}
+    /* --------------------------------------- */
 
     [data-testid="stSidebar"] .stButton > button p {{
-        font-size: 1.1em !important;
-        margin: 0 !important;
-        font-weight: 500 !important;
+        font-size: 1.1em !important; margin: 0 !important; font-weight: 500 !important;
     }}
 
-    /* Niet-actieve knoppen (Grijs & Transparant) */
+    /* Niet-actieve knoppen */
     [data-testid="stSidebar"] .stButton > button[kind="secondary"] {{
-        background-color: transparent !important;
-        color: #8b92a5 !important;
+        background-color: transparent !important; color: #8b92a5 !important;
     }}
     [data-testid="stSidebar"] .stButton > button[kind="secondary"]:hover {{
-        background-color: #2b313e !important;
-        color: white !important;
+        background-color: #2b313e !important; color: white !important;
     }}
 
-    /* Actieve knop (Donkerder + Rode Rand Links) */
+    /* Actieve knop */
     [data-testid="stSidebar"] .stButton > button[kind="primary"] {{
-        background-color: #2b313e !important;
-        color: white !important;
-        border-left: 4px solid {THEME_COLOR} !important;
-        border-radius: 0 8px 8px 0 !important;
+        background-color: #2b313e !important; color: white !important;
+        border-left: 4px solid {THEME_COLOR} !important; border-radius: 0 8px 8px 0 !important;
     }}
 
-    /* ========================================= */
-
-    /* OVERIGE STYLING (Metrics & Kaartjes) */
+    /* OVERIGE STYLING */
     div[data-testid="metric-container"] {{
         background-color: #25262b; border: 1px solid #333; padding: 20px; border-radius: 10px; color: white;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 10px;
@@ -166,7 +149,6 @@ st.markdown(f"""
         background-color: #25262b; border: 1px solid #333; border-left: 4px solid {THEME_COLOR};
         padding: 15px; border-radius: 8px; margin-bottom: 10px;
     }}
-    
     @media (max-width: 768px) {{
         .block-container {{ padding: 1rem 0.5rem !important; padding-left: 80px !important; }}
         h1 {{ font-size: 1.8rem !important; }}
@@ -463,8 +445,8 @@ with st.sidebar:
     # 2. De Menuknoppen Functie
     def nav_button(label, icon, page_name):
         is_active = (st.session_state['active_page'] == page_name)
-        # We gebruiken flink wat spaties zodat de tekst pas NA het icoon begint
-        btn_text = f"{icon}   {label}"
+        # Gebruik unicode em-spaces (\u2003) voor robuustere spacing
+        btn_text = f"{icon}\u2003\u2003{label}"
         
         # Streamlit button: Type "primary" als actief, anders "secondary"
         if st.button(btn_text, key=f"nav_{page_name}", type="primary" if is_active else "secondary"):
@@ -480,7 +462,8 @@ with st.sidebar:
     
     # Bottom sectie
     st.markdown("<div style='margin-top: 50px;'></div>", unsafe_allow_html=True)
-    if st.button("🔄   Verversen", help="Haal de nieuwste gegevens op uit Google Sheets"):
+    # Ook hier em-spaces voor het verversen icoon
+    if st.button("🔄\u2003\u2003Verversen", help="Haal de nieuwste gegevens op uit Google Sheets"):
         clear_data_cache()
         st.rerun()
 
