@@ -132,16 +132,16 @@ def load_pipeline_data():
     records = get_all_records_cached("Sheet1")
     if not records: return None
 
-    # De 5 oude vertrouwde bakjes
-    data_structure = {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
+    data_structure = {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'col5': [], 'col6': [], 'trash': []}
     
-    # Veiligheidsnet voor oude statussen (zodat Meta-fases automatisch goed teruggezet worden)
     status_map = {
-        'Te benaderen': 'col1', 'Nieuw': 'col1', 
-        'Opgevolgd': 'col2', '1e mail': 'col2', '2e mail': 'col2', '3e mail': 'col2', '4e mail': 'col2',
-        'Geland 🎉': 'col3', 'Geland': 'col3',
-        'Geen interesse': 'col4',
-        'Prullenbak 🗑️': 'trash', 'Prullenbak': 'trash'
+        'Nieuw': 'col1', 'Te benaderen': 'col1', 
+        '1e mail': 'col2', 'Opgevolgd': 'col2',
+        '2e mail': 'col3',
+        '3e mail': 'col4',
+        '4e mail': 'col5',
+        'Geland 🎉': 'col6', 'Geland': 'col6',
+        'Prullenbak 🗑️': 'trash', 'Prullenbak': 'trash', 'Geen interesse': 'trash'
     }
     
     for row in records:
@@ -156,7 +156,7 @@ def load_pipeline_data():
                 'project_map': row.get('Projectmap'), 'notes': row.get('Notities'),
                 'maintenance': has_maint
             }
-            col_key = status_map.get(row.get('Status', 'Te benaderen'), 'col1')
+            col_key = status_map.get(row.get('Status', 'Nieuw'), 'col1')
             data_structure[col_key].append(lead)
     return data_structure
 
@@ -164,10 +164,15 @@ def save_pipeline_data(leads_data):
     sheet = get_sheet("Sheet1")
     if not sheet: return
     rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'Onderhoud', 'ID']]
-    col_map = {'col1': 'Te benaderen', 'col2': 'Opgevolgd', 'col3': 'Geland 🎉', 'col4': 'Geen interesse', 'trash': 'Prullenbak 🗑️'}
+    
+    col_map = {
+        'col1': 'Nieuw', 'col2': '1e mail', 'col3': '2e mail', 
+        'col4': '3e mail', 'col5': '4e mail', 'col6': 'Geland 🎉', 
+        'trash': 'Prullenbak 🗑️'
+    }
     
     for col_key, items in leads_data.items():
-        st_txt = col_map.get(col_key, 'Te benaderen')
+        st_txt = col_map.get(col_key, 'Nieuw')
         for i in items:
             m_val = "TRUE" if i.get('maintenance') else "FALSE"
             rows.append([st_txt, i.get('name',''), i.get('price',''), i.get('contact',''), i.get('email',''), i.get('phone',''), i.get('website',''), i.get('project_map',''), i.get('notes',''), m_val, i.get('id', str(uuid.uuid4()))])
@@ -186,7 +191,7 @@ def update_single_lead(updated_lead):
     if found: save_pipeline_data(st.session_state['leads_data'])
 
 def move_lead(lead_id, from_col, to_col):
-    """Verplaatst een lead naar een ander bakje en slaat op."""
+    """Verplaatst een specifieke lead en slaat op."""
     lead_to_move = None
     for i, l in enumerate(st.session_state['leads_data'][from_col]):
         if l['id'] == lead_id:
@@ -195,8 +200,18 @@ def move_lead(lead_id, from_col, to_col):
     if lead_to_move:
         st.session_state['leads_data'][to_col].insert(0, lead_to_move)
         save_pipeline_data(st.session_state['leads_data'])
-        clear_data_cache()
-        st.rerun()
+
+def trash_lead(lead_id):
+    """Gooit een lead in de prullenbak ongeacht waar hij staat."""
+    for col_key, leads in st.session_state['leads_data'].items():
+        if col_key == 'trash': continue
+        for i, lead in enumerate(leads):
+            if lead['id'] == lead_id:
+                lead_to_move = st.session_state['leads_data'][col_key].pop(i)
+                st.session_state['leads_data']['trash'].insert(0, lead_to_move)
+                save_pipeline_data(st.session_state['leads_data'])
+                st.session_state['selected_lead'] = None
+                st.rerun()
 
 def fix_missing_ids():
     sheet = get_sheet("Sheet1")
@@ -346,7 +361,8 @@ def parse_price(price_str):
 # --- INITIALISATIE ---
 if 'leads_data' not in st.session_state:
     loaded = load_pipeline_data()
-    st.session_state['leads_data'] = loaded if loaded else {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
+    st.session_state['leads_data'] = loaded if loaded else {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'col5': [], 'col6': [], 'trash': []}
+if 'board_key' not in st.session_state: st.session_state['board_key'] = 0
 if 'hour_queue' not in st.session_state: st.session_state['hour_queue'] = [] 
 if 'selected_lead' not in st.session_state: st.session_state['selected_lead'] = None
 
@@ -382,7 +398,7 @@ with tab_dash:
             sel_month = st.selectbox("📅 Maand:", months, key="dash_month_filter")
         
         m_data = df[df['Maand'] == sel_month]
-        pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col3']])
+        pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col6']])
         
         m1, m2, m3 = st.columns(3)
         m1.metric(f"Waarde Uren ({sel_month})", f"€ {m_data['Totaal'].sum():,.2f}")
@@ -399,7 +415,7 @@ with tab_dash:
         with c_list:
             st.subheader("🔧 Contracten")
             maintenance_clients = []
-            for col in ['col1', 'col2', 'col3', 'col4']:
+            for col in ['col1', 'col2', 'col3', 'col4', 'col5', 'col6']:
                 for lead in st.session_state['leads_data'][col]:
                     if lead.get('maintenance'):
                         maintenance_clients.append(lead['name'])
@@ -411,10 +427,10 @@ with tab_dash:
             else: st.caption("Geen contracten.")
     else:
         st.info("Nog geen uren geschreven.")
-        pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col3']])
+        pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col6']])
         st.metric("Totaal Deals Geland 🎉", f"€ {pipe_val:,.2f}")
 
-# ================= TAB 2: PIPELINE (HET NIEUWE BORD) =================
+# ================= TAB 2: PIPELINE =================
 with tab_pipeline:
     with st.sidebar:
         try: st.image("Logo RO Marketing.png", width=150)
@@ -442,89 +458,111 @@ with tab_pipeline:
                         st.session_state['leads_data']['col1'].insert(0, ni)
                         save_pipeline_data(st.session_state['leads_data'])
                         st.rerun()
-                        
-        if st.button("🗑️ Prullenbak Legen", key="empty_trash"):
-            st.session_state['leads_data']['trash'] = []
-            save_pipeline_data(st.session_state['leads_data'])
-            st.rerun()
 
-    # --- 1. HET KANBAN BORD (NATIVE COLUMNS) ---
+    # --- 1. HET NATIVE KANBAN BORD ---
     st.markdown("### 📊 Pipeline Overzicht")
     
-    # De 5 kolommen configureren
-    board_cols_def = [
-        ('col1', 'Te benaderen'), 
-        ('col2', 'Opgevolgd'), 
-        ('col3', 'Geland 🎉'), 
-        ('col4', 'Geen interesse'), 
-        ('trash', 'Prullenbak 🗑️')
+    # De Hoofd-fases (Prullenbak is hieruit gehaald voor de breedte)
+    main_cols = [
+        ('col1', 'Nieuw'), 
+        ('col2', '1e mail'), 
+        ('col3', '2e mail'), 
+        ('col4', '3e mail'), 
+        ('col5', '4e mail'),
+        ('col6', 'Geland 🎉')
     ]
     
-    all_leads = [] # Verzamel lijst voor de search hieronder
+    # Verzamel lijst voor de search
+    all_leads = []
+    for k, name in main_cols:
+        all_leads.extend(st.session_state['leads_data'][k])
+    all_leads.extend(st.session_state['leads_data']['trash'])
     
-    # Teken de 5 kolommen strak naast elkaar
-    ui_cols = st.columns(len(board_cols_def))
+    # Maak 6 kolommen naast elkaar op het scherm
+    ui_cols = st.columns(len(main_cols))
     
-    for idx, (c_key, c_name) in enumerate(board_cols_def):
+    for idx, (c_key, c_name) in enumerate(main_cols):
         with ui_cols[idx]:
-            # Mooie gekleurde header voor het bakje
+            # Mooie header
             st.markdown(f"<div style='background-color:#2b313e; padding:10px; border-radius:6px; border-top:4px solid {THEME_COLOR}; text-align:center; font-weight:bold; margin-bottom:10px;'>{c_name} <span style='color:#aaa; font-size:0.9em'>({len(st.session_state['leads_data'][c_key])})</span></div>", unsafe_allow_html=True)
             
-            # De leads in dit bakje
-            for lead in st.session_state['leads_data'][c_key]:
-                all_leads.append(lead)
-                with st.container(border=True):
-                    # Bedrijfsnaam & Icoon
-                    dn = lead['name']
-                    if lead.get('maintenance'): dn += " 🔧"
-                    st.markdown(f"<div style='font-weight:bold; color:{THEME_COLOR}; font-size:1.1em; margin-bottom:5px;'>{dn}</div>", unsafe_allow_html=True)
-                    
-                    # Extra Info (Groter en Duidelijker!)
-                    info_html = ""
-                    if lead.get('price'): info_html += f"💰 {lead['price']}<br>"
-                    if lead.get('contact'): info_html += f"👤 {lead['contact']}<br>"
-                    if lead.get('phone'): info_html += f"📞 {lead['phone']}"
-                    
-                    if info_html:
-                        st.markdown(f"<div style='font-size:0.85em; color:#ccc; margin-bottom:10px; line-height:1.5;'>{info_html}</div>", unsafe_allow_html=True)
-                    
-                    # Verplaats & Bekijk Knopjes
-                    bc1, bc2, bc3 = st.columns([1, 2, 1])
-                    if idx > 0:
-                        if bc1.button("◀", key=f"l_{lead['id']}", help="Verplaats naar links", use_container_width=True):
-                            move_lead(lead['id'], c_key, board_cols_def[idx-1][0])
-                    
-                    # Selecteer lead om details onderaan te openen
-                    if bc2.button("👁️ Bekijk", key=f"v_{lead['id']}", use_container_width=True):
-                        st.session_state['selected_lead'] = lead['id']
-                        st.rerun()
+            # SCROLLBARE CONTAINER MET MAX HEIGHT (ca. 80vh)
+            with st.container(height=650, border=False):
+                for lead in st.session_state['leads_data'][c_key]:
+                    with st.container(border=True):
+                        # Info weergave op het kaartje
+                        dn = lead['name']
+                        if lead.get('maintenance'): dn += " 🔧"
+                        st.markdown(f"<div style='font-weight:bold; color:{THEME_COLOR}; font-size:1.05em; margin-bottom:5px;'>{dn}</div>", unsafe_allow_html=True)
                         
-                    if idx < len(board_cols_def) - 1:
-                        if bc3.button("▶", key=f"r_{lead['id']}", help="Verplaats naar rechts", use_container_width=True):
-                            move_lead(lead['id'], c_key, board_cols_def[idx+1][0])
+                        info_html = ""
+                        if lead.get('price'): info_html += f"💰 {lead['price']}<br>"
+                        if lead.get('contact'): info_html += f"👤 {lead['contact']}<br>"
+                        if lead.get('phone'): info_html += f"📞 {lead['phone']}"
+                        
+                        if info_html:
+                            st.markdown(f"<div style='font-size:0.85em; color:#ccc; margin-bottom:10px; line-height:1.5;'>{info_html}</div>", unsafe_allow_html=True)
+                        
+                        # Knoppen: Bekijk [Links], Pijlen [Rechts]
+                        c_view, c_left, c_right = st.columns([2, 1, 1])
+                        
+                        if c_view.button("👁️ Bekijk", key=f"v_{lead['id']}", use_container_width=True):
+                            st.session_state['selected_lead'] = lead['id']
+                            st.rerun()
+                            
+                        if idx > 0:
+                            if c_left.button("◀", key=f"l_{lead['id']}", help="Naar vorige fase", use_container_width=True):
+                                move_lead(lead['id'], c_key, main_cols[idx-1][0])
+                                st.rerun()
+                        
+                        if idx < len(main_cols) - 1:
+                            if c_right.button("▶", key=f"r_{lead['id']}", help="Naar volgende fase", use_container_width=True):
+                                move_lead(lead['id'], c_key, main_cols[idx+1][0])
+                                st.rerun()
 
-    # --- 2. HET DETAILS/BEWERK GEDEELTE ONDERAAN ---
+    # --- 2. DE PRULLENBAK UITKLAPPER ---
+    st.write("")
+    with st.expander(f"🗑️ Prullenbak ({len(st.session_state['leads_data']['trash'])} leads)", expanded=False):
+        if not st.session_state['leads_data']['trash']:
+            st.caption("Prullenbak is leeg.")
+        else:
+            trash_cols = st.columns(4) # We zetten ze in een grid van 4
+            for t_idx, t_lead in enumerate(st.session_state['leads_data']['trash']):
+                with trash_cols[t_idx % 4]:
+                    with st.container(border=True):
+                        st.write(f"**{t_lead['name']}**")
+                        tc1, tc2 = st.columns(2)
+                        if tc1.button("👁️ Bekijk", key=f"vt_{t_lead['id']}", use_container_width=True):
+                            st.session_state['selected_lead'] = t_lead['id']
+                            st.rerun()
+                        if tc2.button("♻️ Herstel", key=f"rest_{t_lead['id']}", help="Zet terug in Nieuw", use_container_width=True):
+                            move_lead(t_lead['id'], 'trash', 'col1')
+                            st.rerun()
+                            
+            if st.button("🚨 Prullenbak Definitief Legen", type="primary"):
+                st.session_state['leads_data']['trash'] = []
+                save_pipeline_data(st.session_state['leads_data'])
+                st.rerun()
+
+    # --- 3. HET DETAILS/BEWERK GEDEELTE ONDERAAN ---
     st.divider()
     if len(all_leads) > 0:
         c_sel, c_inf = st.columns([1, 2])
         with c_sel:
-            st.markdown("#### 🔎 Snel Zoeken")
-            # Dropdown menu, selecteert automatisch de lead waar je op 'Bekijk' hebt geklikt
+            st.markdown("#### 🔎 Snel Zoeken / Details")
             d_opts = {f"{l['name']}": l['id'] for l in all_leads}
             
             default_index = 0
-            if st.session_state['selected_lead'] in d_opts.values():
+            if st.session_state.get('selected_lead') in d_opts.values():
                 default_index = list(d_opts.values()).index(st.session_state['selected_lead'])
                 
-            sel_name = st.selectbox("Kies een deal om details te zien of bewerken:", list(d_opts.keys()), index=default_index, key="pipeline_deal_selector")
+            sel_name = st.selectbox("Kies een deal:", list(d_opts.keys()), index=default_index, key="pipeline_deal_selector")
             sel_id = d_opts[sel_name]
             sel = next((l for l in all_leads if l['id'] == sel_id), None)
             
-            # Sync de dropdown selectie met de sessie
             if sel_id != st.session_state.get('selected_lead'):
                 st.session_state['selected_lead'] = sel_id
 
-        # Toon het grote info blok!
         if sel:
             if 'editing_id' not in st.session_state or st.session_state['editing_id'] != sel['id']:
                 st.session_state['edit_mode'] = False
@@ -553,14 +591,21 @@ with tab_pipeline:
                                 update_single_lead(updated_lead)
                                 st.session_state['edit_mode'] = False; st.rerun()
                     else:
-                        r1, r2 = st.columns([4, 1])
+                        r1, r2, r3 = st.columns([2.5, 1, 1])
                         with r1: 
                             dn = sel['name']
                             if sel.get('maintenance'): dn += " 🔧"
                             st.markdown(f"### {dn}")
                         with r2: 
-                            if st.button("✏️ Bewerken", key="btn_edit_mode"):
+                            if st.button("✏️ Bewerken", key="btn_edit_mode", use_container_width=True):
                                 st.session_state['edit_mode'] = True; st.rerun()
+                        with r3:
+                            # Prullenbak knop, behalve als hij al in de prullenbak zit
+                            in_trash = any(l['id'] == sel['id'] for l in st.session_state['leads_data']['trash'])
+                            if not in_trash:
+                                if st.button("🗑️ Prullenbak", key="btn_trash", use_container_width=True):
+                                    trash_lead(sel['id'])
+                                    
                         st.markdown(f"<h1 style='color:#fff;margin-top:-10px;font-size:2em'>{sel.get('price', '')}</h1>", unsafe_allow_html=True)
                         rc1, rc2 = st.columns(2)
                         with rc1:
@@ -747,7 +792,7 @@ with tab_hours:
         "headerToolbar": {
             "left": "today prev,next",
             "center": "title",
-            "right": "dayGridMonth" # Alleen maandoverzicht
+            "right": "dayGridMonth"
         },
         "initialView": "dayGridMonth",
         "selectable": True,
