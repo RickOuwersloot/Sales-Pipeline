@@ -145,8 +145,20 @@ def load_pipeline_data():
     records = get_all_records_cached("Sheet1")
     if not records: return None
 
-    data_structure = {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
-    status_map = {'Te benaderen': 'col1', 'Opgevolgd': 'col2', 'Geland': 'col3', 'Geen interesse': 'col4', 'Prullenbak': 'trash'}
+    # DE NIEUWE BAKJES
+    data_structure = {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'col5': [], 'col6': [], 'trash': []}
+    
+    # Koppel oude & nieuwe statussen aan de juiste kolommen
+    status_map = {
+        'Nieuw': 'col1', 'Te benaderen': 'col1', 
+        '1e mail': 'col2', 'Opgevolgd': 'col2',
+        '2e mail': 'col3',
+        '3e mail': 'col4',
+        '4e mail': 'col5',
+        'Geland 🎉': 'col6', 'Geland': 'col6',
+        'Prullenbak 🗑️': 'trash', 'Prullenbak': 'trash', 'Geen interesse': 'trash'
+    }
+    
     for row in records:
         if row.get('Bedrijf'):
             raw_id = str(row.get('ID', '')).strip()
@@ -159,7 +171,7 @@ def load_pipeline_data():
                 'project_map': row.get('Projectmap'), 'notes': row.get('Notities'),
                 'maintenance': has_maint
             }
-            col_key = status_map.get(row.get('Status', 'Te benaderen'), 'col1')
+            col_key = status_map.get(row.get('Status', 'Nieuw'), 'col1')
             data_structure[col_key].append(lead)
     return data_structure
 
@@ -167,9 +179,20 @@ def save_pipeline_data(leads_data):
     sheet = get_sheet("Sheet1")
     if not sheet: return
     rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'Onderhoud', 'ID']]
-    col_map = {'col1': 'Te benaderen', 'col2': 'Opgevolgd', 'col3': 'Geland', 'col4': 'Geen interesse', 'trash': 'Prullenbak'}
+    
+    # DE NIEUWE NAMEN VAN DE BAKJES
+    col_map = {
+        'col1': 'Nieuw', 
+        'col2': '1e mail', 
+        'col3': '2e mail', 
+        'col4': '3e mail', 
+        'col5': '4e mail',
+        'col6': 'Geland 🎉', 
+        'trash': 'Prullenbak 🗑️'
+    }
+    
     for col_key, items in leads_data.items():
-        st_txt = col_map.get(col_key, 'Te benaderen')
+        st_txt = col_map.get(col_key, 'Nieuw')
         for i in items:
             m_val = "TRUE" if i.get('maintenance') else "FALSE"
             rows.append([st_txt, i.get('name',''), i.get('price',''), i.get('contact',''), i.get('email',''), i.get('phone',''), i.get('website',''), i.get('project_map',''), i.get('notes',''), m_val, i.get('id', str(uuid.uuid4()))])
@@ -293,8 +316,12 @@ def delete_hour_entry(entry_id):
 # --- INSPIRATIE LOGICA ---
 def load_inspirations():
     records = get_all_records_cached("Inspiratie")
-    # Veilige controle: zorg dat we alleen records pakken met een ID en we voorkomen KeyErrors
-    return [r for r in records if r.get('ID')]
+    valid_records = []
+    for r in records:
+        r_id = r.get('ID') or r.get('id') or r.get('ID ')
+        if r_id:
+            valid_records.append(r)
+    return valid_records
 
 def add_inspiration(naam, url, notitie, tag):
     sheet = get_sheet("Inspiratie")
@@ -309,9 +336,16 @@ def delete_inspiration(entry_id):
     records = sheet.get_all_records()
     rows = [['Naam', 'URL', 'Notitie', 'Tag', 'ID']]
     for r in records:
-        if str(r.get('ID')) != entry_id:
-            rows.append([r.get('Naam', ''), r.get('URL', ''), r.get('Notitie', ''), r.get('Tag', ''), r.get('ID', '')])
-    sheet.clear(); sheet.update(rows)
+        r_id = r.get('ID') or r.get('id') or r.get('ID ')
+        if str(r_id) != str(entry_id):
+            n = r.get('Naam') or r.get('naam') or r.get('Naam ') or ''
+            u = r.get('URL') or r.get('url') or r.get('URL ') or ''
+            nt = r.get('Notitie') or r.get('notitie') or r.get('Notitie ') or ''
+            t = r.get('Tag') or r.get('tag') or r.get('Tag ') or ''
+            rows.append([n, u, nt, t, r_id])
+            
+    sheet.clear()
+    sheet.update(rows)
     clear_data_cache()
 
 # --- HELPER ---
@@ -324,7 +358,8 @@ def parse_price(price_str):
 # --- INITIALISATIE ---
 if 'leads_data' not in st.session_state:
     loaded = load_pipeline_data()
-    st.session_state['leads_data'] = loaded if loaded else {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
+    # Aangepast naar de 7 nieuwe bakjes
+    st.session_state['leads_data'] = loaded if loaded else {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'col5': [], 'col6': [], 'trash': []}
 if 'board_key' not in st.session_state: st.session_state['board_key'] = 0
 if 'hour_queue' not in st.session_state: st.session_state['hour_queue'] = [] 
 
@@ -335,7 +370,6 @@ all_companies.sort()
 
 # --- APP LAYOUT ---
 st.title("🚀 RO Marketing CRM")
-# Knop om handmatig alles te verversen
 if st.button("🔄 Ververs Data", help="Haal de nieuwste gegevens op uit Google Sheets"):
     clear_data_cache()
     st.rerun()
@@ -361,7 +395,9 @@ with tab_dash:
             sel_month = st.selectbox("📅 Maand:", months, key="dash_month_filter")
         
         m_data = df[df['Maand'] == sel_month]
-        pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col3']])
+        
+        # OPMERKING: Geland is nu 'col6' in plaats van 'col3'
+        pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col6']])
         
         m1, m2, m3 = st.columns(3)
         m1.metric(f"Waarde Uren ({sel_month})", f"€ {m_data['Totaal'].sum():,.2f}")
@@ -378,7 +414,8 @@ with tab_dash:
         with c_list:
             st.subheader("🔧 Contracten")
             maintenance_clients = []
-            for col in ['col1', 'col2', 'col3', 'col4']:
+            # Doorzoek alle actieve kolommen voor onderhoud
+            for col in ['col1', 'col2', 'col3', 'col4', 'col5', 'col6']:
                 for lead in st.session_state['leads_data'][col]:
                     if lead.get('maintenance'):
                         maintenance_clients.append(lead['name'])
@@ -390,7 +427,8 @@ with tab_dash:
             else: st.caption("Geen contracten.")
     else:
         st.info("Nog geen uren geschreven.")
-        pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col3']])
+        # Zorg dat dit ook naar col6 kijkt!
+        pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col6']])
         st.metric("Totaal Deals Geland 🎉", f"€ {pipe_val:,.2f}")
 
 # ================= TAB 2: PIPELINE =================
@@ -427,7 +465,17 @@ with tab_pipeline:
         if c1.button("🔄", key="reload_data"): st.cache_resource.clear(); del st.session_state['leads_data']; st.rerun()
         if c2.button("🛠️", key="fix_ids"): fix_missing_ids()
 
-    cols = [('col1', 'Te benaderen'), ('col2', 'Opgevolgd'), ('col3', 'Geland 🎉'), ('col4', 'Geen interesse'), ('trash', 'Prullenbak 🗑️')]
+    # HIER ZIJN JE NIEUWE BAKJES!
+    cols = [
+        ('col1', 'Nieuw'), 
+        ('col2', '1e mail'), 
+        ('col3', '2e mail'), 
+        ('col4', '3e mail'), 
+        ('col5', '4e mail'),
+        ('col6', 'Geland 🎉'), 
+        ('trash', 'Prullenbak 🗑️')
+    ]
+    
     k_data = []
     all_leads = []
     for k, name in cols:
@@ -442,7 +490,8 @@ with tab_pipeline:
 
     s_data = sort_items(k_data, multi_containers=True, key=f"board_{st.session_state['board_key']}")
 
-    if len(s_data) == 5:
+    # Check of de lijst is versleept (7 kolommen in plaats van 5!)
+    if len(s_data) == 7:
         new_st = {}
         lookup = {}
         for l in all_leads:
@@ -643,7 +692,7 @@ with tab_tasks:
     if st.button("🧹 Voltooide taken verwijderen", key="del_completed_tasks"):
         delete_completed_tasks(); st.success("Opgeruimd!"); st.rerun()
 
-# ================= TAB 4: UREN (BATCHING UPDATE) =================
+# ================= TAB 4: UREN =================
 with tab_hours:
     st.header("⏱️ Urenregistratie")
     st.markdown(f"**Vast Tarief:** €{HOURLY_RATE} / uur")
@@ -695,7 +744,7 @@ with tab_hours:
         "headerToolbar": {
             "left": "today prev,next",
             "center": "title",
-            "right": "dayGridMonth" # Alleen maandoverzicht
+            "right": "dayGridMonth"
         },
         "initialView": "dayGridMonth",
         "selectable": True,
@@ -796,29 +845,25 @@ with tab_inspire:
 
     st.divider()
     
-    # Filteren en weergave
     i_filt = st.selectbox("🔍 Filter op Tag:", ["Alle Inspiratie"] + INSPIRATION_TAGS, key="inspi_filter")
     
     all_insp = load_inspirations()
     if i_filt != "Alle Inspiratie":
-        disp_insp = [i for i in all_insp if i.get('Tag') == i_filt]
+        disp_insp = [i for i in all_insp if i.get('Tag') == i_filt or i.get('tag') == i_filt or i.get('Tag ') == i_filt]
     else:
         disp_insp = all_insp
 
     if not disp_insp:
         st.info("Nog geen inspiratie gevonden. Tijd om te gaan surfen! 🏄‍♂️")
     else:
-        # Weergave in een grid (bijv. 3 kolommen)
         cols = st.columns(3)
         for index, insp in enumerate(disp_insp):
-            with cols[index % 3]: # Verdeel over de 3 kolommen
-                
-                # VEILIG GEGEVENS OPHALEN (HUFTERPROOF)
-                naam = insp.get('Naam', 'Naamloos')
-                tag = insp.get('Tag', 'Geen')
-                notitie = insp.get('Notitie', '')
-                url = str(insp.get('URL', ''))
-                insp_id = insp.get('ID', str(index))
+            with cols[index % 3]: 
+                naam = insp.get('Naam') or insp.get('naam') or insp.get('Naam ') or 'Naamloos'
+                tag = insp.get('Tag') or insp.get('tag') or insp.get('Tag ') or 'Geen'
+                notitie = insp.get('Notitie') or insp.get('notitie') or insp.get('Notitie ') or ''
+                url = str(insp.get('URL') or insp.get('url') or insp.get('URL ') or '')
+                insp_id = insp.get('ID') or insp.get('id') or insp.get('ID ') or str(index)
                 
                 st.markdown(f"""
                 <div class="inspi-card">
@@ -836,7 +881,7 @@ with tab_inspire:
                 if url:
                     c_btn.link_button("🔗 Bezoek Website", url, use_container_width=True)
                 else:
-                    c_btn.button("Geen link", disabled=True, use_container_width=True)
+                    c_btn.button("Geen link", disabled=True, use_container_width=True, key=f"nolink_{insp_id}")
                     
                 if c_del.button("🗑️", key=f"del_insp_{insp_id}", use_container_width=True):
                     delete_inspiration(insp_id)
