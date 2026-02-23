@@ -12,7 +12,7 @@ st.set_page_config(
     page_title="RO Marketing CRM", 
     page_icon="Logo RO Marketing.png", 
     layout="wide", 
-    initial_sidebar_state="auto" 
+    initial_sidebar_state="expanded" 
 )
 
 # --- KALENDER IMPORT ---
@@ -56,7 +56,7 @@ st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
     .stApp {{ font-family: 'Montserrat', sans-serif !important; }}
-    p, input, textarea, .stMarkdown, h1, h2, h3, h4, h5, h6, .stSelectbox, .stTextInput, .stDateInput, .stNumberInput {{ 
+    p, input, textarea, .stMarkdown, h1, h2, h3, h4, h5, h6, .stSelectbox, .stTextInput, .stDateInput, .stNumberInput, .stButton {{ 
         font-family: 'Montserrat', sans-serif !important; 
     }}
     button, i, span[class^="material-symbols"] {{ font-family: inherit !important; }}
@@ -67,15 +67,32 @@ st.markdown(f"""
     }}
     .stApp {{ background-color: #0E1117; }}
     .block-container {{ max_width: 100% !important; padding: 2rem; }}
-    
-    /* TABS */
-    .stTabs [data-baseweb="tab-list"] {{ gap: 20px; overflow-x: auto; flex-wrap: nowrap; }}
-    .stTabs [data-baseweb="tab"] {{
-        height: 50px; white-space: nowrap; background-color: #25262b;
-        border-radius: 5px 5px 0 0; gap: 1px; padding: 10px; color: white;
-    }}
-    .stTabs [aria-selected="true"] {{ background-color: {THEME_COLOR} !important; color: white !important; }}
 
+    /* SIDEBAR STYLING */
+    [data-testid="stSidebar"] {{
+        background-color: #151922;
+        border-right: 1px solid #2b313e;
+    }}
+    [data-testid="stSidebar"] button {{
+        background-color: transparent;
+        border: none;
+        color: #adadad;
+        text-align: left;
+        padding: 10px;
+        font-size: 1.1em;
+        transition: all 0.3s ease;
+    }}
+    [data-testid="stSidebar"] button:hover {{
+        background-color: #2b313e;
+        color: white;
+    }}
+    [data-testid="stSidebar"] button p {{
+        font-weight: 600;
+    }}
+    
+    /* ACTIVE NAV BUTTON HACK */
+    /* We gebruiken een trucje in de Python code om de actieve knop een andere stijl te geven */
+    
     /* METRICS BOX */
     div[data-testid="metric-container"] {{
         background-color: #25262b; border: 1px solid #333; padding: 20px; border-radius: 10px; color: white;
@@ -216,22 +233,6 @@ def trash_lead(lead_id):
                 st.session_state['selected_lead'] = None
                 st.rerun()
 
-def fix_missing_ids():
-    sheet = get_sheet("Sheet1")
-    if not sheet: return
-    records = sheet.get_all_records()
-    rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'Onderhoud', 'ID']]
-    seen = set(); change = False
-    for r in records:
-        cid = str(r.get('ID','')).strip()
-        if not cid or cid in seen: nid = str(uuid.uuid4()); r['ID'] = nid; change = True
-        else: nid = cid
-        seen.add(nid)
-        rows.append([r.get('Status',''), r.get('Bedrijf',''), r.get('Prijs',''), r.get('Contact',''), r.get('Email',''), r.get('Telefoon',''), r.get('Website',''), r.get('Projectmap',''), r.get('Notities',''), r.get('Onderhoud','FALSE'), nid])
-    if change: 
-        sheet.clear(); sheet.update(rows); clear_data_cache(); st.success("IDs fixed!"); st.rerun()
-    else: st.toast("IDs OK")
-
 # --- TAKEN LOGICA ---
 def load_tasks():
     records = get_all_records_cached("Taken")
@@ -367,6 +368,8 @@ if 'leads_data' not in st.session_state:
     st.session_state['leads_data'] = loaded if loaded else {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
 if 'hour_queue' not in st.session_state: st.session_state['hour_queue'] = [] 
 if 'selected_lead' not in st.session_state: st.session_state['selected_lead'] = None
+# NIEUW: Huidige pagina bijhouden
+if 'active_page' not in st.session_state: st.session_state['active_page'] = 'Dashboard'
 
 all_companies = []
 for col_list in st.session_state['leads_data'].values():
@@ -374,16 +377,42 @@ for col_list in st.session_state['leads_data'].values():
 all_companies.sort()
 
 # --- APP LAYOUT ---
-st.title("🚀 RO Marketing CRM")
-if st.button("🔄 Ververs Data", help="Haal de nieuwste gegevens op uit Google Sheets"):
-    clear_data_cache()
-    st.rerun()
 
-tab_dash, tab_pipeline, tab_tasks, tab_hours, tab_inspire = st.tabs(["📈 Dashboard", "📊 Pipeline", "✅ Projecten & Taken", "⏱️ Uren & Tijd", "💡 Inspiratie"])
+# --- NIEUWE SIDEBAR NAVIGATIE ---
+with st.sidebar:
+    try: st.image("Logo RO Marketing.png", use_column_width=True)
+    except: st.warning("Logo?")
+    st.write("")
+    st.write("")
+    
+    # Functie voor de knoppen, om ze 'actief' te maken
+    def nav_button(label, icon, page_name):
+        btn_style = ""
+        if st.session_state['active_page'] == page_name:
+             # Hack: Voeg een border-left toe aan de actieve knop via markdown
+             st.markdown(f"""<style>div.stButton > button:focus {{ border-left: 4px solid {THEME_COLOR} !important; color: white !important; background: #2b313e !important; }}</style>""", unsafe_allow_html=True)
 
-# ================= TAB 1: DASHBOARD =================
-with tab_dash:
-    st.header("📈 Financieel Dashboard")
+        if st.button(f"{icon} {label}", key=f"nav_{page_name}", use_container_width=True):
+            st.session_state['active_page'] = page_name
+            st.rerun()
+
+    nav_button("Dashboard", "📈", "Dashboard")
+    nav_button("Pipeline", "📊", "Pipeline")
+    nav_button("Projecten & Taken", "✅", "Projecten")
+    nav_button("Urenregistratie", "⏱️", "Uren")
+    nav_button("Inspiratie", "💡", "Inspiratie")
+    
+    st.divider()
+    if st.button("🔄 Ververs Data", help="Haal de nieuwste gegevens op uit Google Sheets", use_container_width=True):
+        clear_data_cache()
+        st.rerun()
+
+
+# ================= MAIN CONTENT AREA =================
+
+# ================= PAGINA 1: DASHBOARD =================
+if st.session_state['active_page'] == 'Dashboard':
+    st.title("📈 Financieel Dashboard")
     all_hours = load_hours()
     if all_hours:
         df = pd.DataFrame(all_hours)
@@ -435,37 +464,41 @@ with tab_dash:
         pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col4']])
         st.metric("Totaal Deals Geland 🎉", f"€ {pipe_val:,.2f}")
 
-# ================= TAB 2: PIPELINE =================
-with tab_pipeline:
-    with st.sidebar:
-        try: st.image("Logo RO Marketing.png", width=150)
-        except: st.warning("Logo?")
-        with st.expander("➕ Nieuwe Deal", expanded=False):
-            with st.form("add_lead"):
+# ================= PAGINA 2: PIPELINE =================
+elif st.session_state['active_page'] == 'Pipeline':
+    st.title("📊 Pipeline Overzicht")
+    
+    # --- NIEUW: Formulier in een expander BOVEN het bord ---
+    with st.expander("➕ Nieuwe Deal Toevoegen", expanded=False):
+        with st.form("add_lead_main"):
+            c_f1, c_f2 = st.columns(2)
+            with c_f1:
                 comp = st.text_input("Bedrijf *")
-                cont = st.text_input("Contact")
+                cont = st.text_input("Contactpersoon")
                 mail = st.text_input("Email")
-                tel = st.text_input("Tel")
+                tel = st.text_input("Telefoon")
+            with c_f2:
+                pri = st.text_input("Prijs (bv. €1500)")
                 web = st.text_input("Website URL")
                 proj = st.text_input("Link naar Projectmap (URL)") 
                 m_contr = st.checkbox("🔧 Heeft Onderhoudscontract?")
-                pri = st.text_input("€")
-                not_ = st.text_area("Note")
-                if st.form_submit_button("Toevoegen"):
-                    if not comp: st.error("Naam!")
-                    else:
-                        ni = {
-                            'id': str(uuid.uuid4()), 'name': comp, 'contact': cont, 
-                            'email': mail, 'phone': tel, 'website': web, 
-                            'project_map': proj, 'price': pri, 'notes': not_,
-                            'maintenance': m_contr
-                        }
-                        st.session_state['leads_data']['col1'].insert(0, ni)
-                        save_pipeline_data(st.session_state['leads_data'])
-                        st.rerun()
+            not_ = st.text_area("Notities")
+            if st.form_submit_button("Deal Toevoegen", use_container_width=True):
+                if not comp: st.error("Vul minimaal een bedrijfsnaam in.")
+                else:
+                    ni = {
+                        'id': str(uuid.uuid4()), 'name': comp, 'contact': cont, 
+                        'email': mail, 'phone': tel, 'website': web, 
+                        'project_map': proj, 'price': pri, 'notes': not_,
+                        'maintenance': m_contr
+                    }
+                    st.session_state['leads_data']['col1'].insert(0, ni)
+                    save_pipeline_data(st.session_state['leads_data'])
+                    st.success("Deal toegevoegd aan 'Te benaderen'!")
+                    time.sleep(1); st.rerun()
 
     # --- 1. HET NATIVE KANBAN BORD (4 FASES) ---
-    st.markdown("### 📊 Pipeline Overzicht")
+    st.write("")
     
     # Precies de 4 bakjes die jij wilt
     main_cols = [
@@ -541,7 +574,7 @@ with tab_pipeline:
                         if tc2.button("♻️ Herstel", key=f"rest_{t_lead['id']}", help="Zet terug in Te benaderen", use_container_width=True):
                             move_lead(t_lead['id'], 'trash', 'col1')
                             st.rerun()
-                            
+            st.divider()
             if st.button("🚨 Prullenbak Definitief Legen", type="primary"):
                 st.session_state['leads_data']['trash'] = []
                 save_pipeline_data(st.session_state['leads_data'])
@@ -627,9 +660,9 @@ with tab_pipeline:
                             else: st.caption("Geen projectmap gekoppeld")
                         st.markdown("---"); st.info(sel.get('notes') or "Geen notities.")
 
-# ================= TAB 3: TAKEN =================
-with tab_tasks:
-    st.header("✅ Projectmanagement")
+# ================= PAGINA 3: PROJECTEN =================
+elif st.session_state['active_page'] == 'Projecten':
+    st.title("✅ Projectmanagement")
     
     with st.expander("⚡ Snel Taken Toevoegen (Checklists)", expanded=False):
         st.caption("Kies een standaardlijst om in één keer toe te voegen aan een klant.")
@@ -743,9 +776,9 @@ with tab_tasks:
     if st.button("🧹 Voltooide taken verwijderen", key="del_completed_tasks"):
         delete_completed_tasks(); st.success("Opgeruimd!"); st.rerun()
 
-# ================= TAB 4: UREN =================
-with tab_hours:
-    st.header("⏱️ Urenregistratie")
+# ================= PAGINA 4: UREN =================
+elif st.session_state['active_page'] == 'Uren':
+    st.title("⏱️ Urenregistratie")
     st.markdown(f"**Vast Tarief:** €{HOURLY_RATE} / uur")
     
     with st.container(border=True):
@@ -872,9 +905,9 @@ with tab_hours:
                         delete_hour_entry(e.get('ID', ''))
                         st.rerun()
 
-# ================= TAB 5: INSPIRATIE =================
-with tab_inspire:
-    st.header("💡 Inspiratie Wall")
+# ================= PAGINA 5: INSPIRATIE =================
+elif st.session_state['active_page'] == 'Inspiratie':
+    st.title("💡 Inspiratie Wall")
     st.markdown("Sla hier mooie websites en slimme ideeën op voor later.")
     
     with st.expander("➕ Nieuwe Inspiratie Toevoegen", expanded=False):
