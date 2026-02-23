@@ -12,7 +12,7 @@ st.set_page_config(
     page_title="RO Marketing CRM", 
     page_icon="Logo RO Marketing.png", 
     layout="wide", 
-    initial_sidebar_state="expanded" 
+    initial_sidebar_state="expanded" # Moet op expanded staan voor onze CSS hack
 )
 
 # --- KALENDER IMPORT ---
@@ -51,12 +51,13 @@ HOURLY_RATE = 30.0
 THEME_COLOR = "#ff6b6b"
 INSPIRATION_TAGS = ["Algemeen", "Hovenier", "Aannemer", "E-commerce", "Portfolio", "Zakelijke Dienstverlening", "Horeca", "Anders"]
 
-# --- 2. CSS STYLING ---
+# --- 2. CSS STYLING (UITGEBREID VOOR HOVER-SIDEBAR) ---
 st.markdown(f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;600;700&display=swap');
-    .stApp {{ font-family: 'Montserrat', sans-serif !important; }}
-    p, input, textarea, .stMarkdown, h1, h2, h3, h4, h5, h6, .stSelectbox, .stTextInput, .stDateInput, .stNumberInput, .stButton {{ 
+    @import url('https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Montserrat:wght@400;500;600;700&display=swap');
+    
+    /* Algemene Fonts */
+    .stApp, p, input, textarea, .stMarkdown, .stSelectbox, .stTextInput, .stDateInput, .stNumberInput {{ 
         font-family: 'Montserrat', sans-serif !important; 
     }}
     button, i, span[class^="material-symbols"] {{ font-family: inherit !important; }}
@@ -66,47 +67,108 @@ st.markdown(f"""
         font-weight: 400 !important;
     }}
     .stApp {{ background-color: #0E1117; }}
-    .block-container {{ max_width: 100% !important; padding: 2rem; }}
 
-    /* SIDEBAR STYLING */
+    /* =========================================
+       🚀 DE NIEUWE HOVER-SIDEBAR MAGIE
+       ========================================= */
+       
+    /* 1. Verberg de standaard Streamlit inklap-knoppen */
+    [data-testid="stSidebarCollapseButton"], [data-testid="stSidebarResizer"] {{
+        display: none !important;
+    }}
+
+    /* 2. De Sidebar zelf: Standaard 75px breed, uitklapbaar bij hover */
     [data-testid="stSidebar"] {{
-        background-color: #151922;
-        border-right: 1px solid #2b313e;
+        position: fixed !important; 
+        left: 0;
+        top: 0;
+        height: 100vh !important;
+        width: 75px !important;
+        min-width: 75px !important;
+        max-width: 260px !important;
+        background-color: #151922 !important;
+        border-right: 1px solid #2b313e !important;
+        transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        overflow-x: hidden !important;
+        z-index: 999999 !important;
     }}
-    [data-testid="stSidebar"] button {{
-        background-color: transparent;
-        border: none;
-        color: #adadad;
-        text-align: left;
-        padding: 10px;
-        font-size: 1.1em;
-        transition: all 0.3s ease;
-    }}
-    [data-testid="stSidebar"] button:hover {{
-        background-color: #2b313e;
-        color: white;
-    }}
-    [data-testid="stSidebar"] button p {{
-        font-weight: 600;
+
+    /* Uitklappen bij hover! */
+    [data-testid="stSidebar"]:hover {{
+        width: 260px !important;
+        min-width: 260px !important;
     }}
     
-    /* ACTIVE NAV BUTTON HACK */
-    /* We gebruiken een trucje in de Python code om de actieve knop een andere stijl te geven */
-    
-    /* METRICS BOX */
+    /* Verberg scrollbalken in de sidebar voor een strakke look */
+    [data-testid="stSidebar"]::-webkit-scrollbar {{ display: none; }}
+
+    /* Zorg dat de hoofd-app iets opschuift zodat hij niet achter de sidebar valt */
+    .block-container {{
+        padding-left: 100px !important; 
+        padding-top: 2rem !important;
+        max-width: 100% !important;
+    }}
+
+    /* 3. Logo netjes links uitgelijnd */
+    [data-testid="stSidebar"] [data-testid="stImage"] {{
+        display: flex;
+        justify-content: flex-start;
+        padding-left: 12px;
+        margin-top: 10px;
+    }}
+
+    /* 4. Layout van de navigatieknoppen */
+    [data-testid="stSidebar"] .stButton > button {{
+        width: 100% !important;
+        border: none !important;
+        display: flex !important;
+        justify-content: flex-start !important; /* Tekst en icoon links uitlijnen */
+        align-items: center !important;
+        padding: 12px 15px !important;
+        border-radius: 8px !important;
+        white-space: nowrap !important; /* Zorgt dat de tekst niet op 2 regels breekt als hij dicht is */
+        transition: all 0.2s ease !important;
+        box-shadow: none !important;
+    }}
+
+    [data-testid="stSidebar"] .stButton > button p {{
+        font-size: 1.1em !important;
+        margin: 0 !important;
+        font-weight: 500 !important;
+    }}
+
+    /* Niet-actieve knoppen (Grijs & Transparant) */
+    [data-testid="stSidebar"] .stButton > button[kind="secondary"] {{
+        background-color: transparent !important;
+        color: #8b92a5 !important;
+    }}
+    [data-testid="stSidebar"] .stButton > button[kind="secondary"]:hover {{
+        background-color: #2b313e !important;
+        color: white !important;
+    }}
+
+    /* Actieve knop (Donkerder + Rode Rand Links) */
+    [data-testid="stSidebar"] .stButton > button[kind="primary"] {{
+        background-color: #2b313e !important;
+        color: white !important;
+        border-left: 4px solid {THEME_COLOR} !important;
+        border-radius: 0 8px 8px 0 !important;
+    }}
+
+    /* ========================================= */
+
+    /* OVERIGE STYLING (Metrics & Kaartjes) */
     div[data-testid="metric-container"] {{
         background-color: #25262b; border: 1px solid #333; padding: 20px; border-radius: 10px; color: white;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 10px;
     }}
-    
-    /* INSPIRATIE KAARTJES */
     .inspi-card {{
         background-color: #25262b; border: 1px solid #333; border-left: 4px solid {THEME_COLOR};
         padding: 15px; border-radius: 8px; margin-bottom: 10px;
     }}
     
     @media (max-width: 768px) {{
-        .block-container {{ padding: 1rem 0.5rem !important; }}
+        .block-container {{ padding: 1rem 0.5rem !important; padding-left: 80px !important; }}
         h1 {{ font-size: 1.8rem !important; }}
     }}
     </style>
@@ -132,11 +194,9 @@ def get_sheet(sheet_name="Sheet1"):
         except: return None
     return None
 
-# --- CRUCIALE FUNCTIE: CLEAR CACHE ---
 def clear_data_cache():
     st.cache_data.clear()
 
-# --- DATALOADERS ---
 @st.cache_data(ttl=600) 
 def get_all_records_cached(sheet_name):
     sheet = get_sheet(sheet_name)
@@ -149,10 +209,9 @@ def load_pipeline_data():
     records = get_all_records_cached("Sheet1")
     if not records: return None
 
-    # Terug naar 4 bakjes + prullenbak
+    # Jouw 4 vertrouwde bakjes + prullenbak
     data_structure = {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
     
-    # Zorgt dat oude/tijdelijke statussen goed gekoppeld worden
     status_map = {
         'Te benaderen': 'col1', 'Nieuw': 'col1', 
         'Opgevolgd': 'col2', '1e mail': 'col2', '2e mail': 'col2', '3e mail': 'col2', '4e mail': 'col2',
@@ -182,7 +241,6 @@ def save_pipeline_data(leads_data):
     if not sheet: return
     rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'Onderhoud', 'ID']]
     
-    # Nette opslag in de sheet
     col_map = {
         'col1': 'Te benaderen', 
         'col2': 'Opgevolgd', 
@@ -211,7 +269,6 @@ def update_single_lead(updated_lead):
     if found: save_pipeline_data(st.session_state['leads_data'])
 
 def move_lead(lead_id, from_col, to_col):
-    """Verplaatst een specifieke lead en slaat op."""
     lead_to_move = None
     for i, l in enumerate(st.session_state['leads_data'][from_col]):
         if l['id'] == lead_id:
@@ -222,7 +279,6 @@ def move_lead(lead_id, from_col, to_col):
         save_pipeline_data(st.session_state['leads_data'])
 
 def trash_lead(lead_id):
-    """Gooit een lead in de prullenbak ongeacht waar hij staat."""
     for col_key, leads in st.session_state['leads_data'].items():
         if col_key == 'trash': continue
         for i, lead in enumerate(leads):
@@ -232,6 +288,22 @@ def trash_lead(lead_id):
                 save_pipeline_data(st.session_state['leads_data'])
                 st.session_state['selected_lead'] = None
                 st.rerun()
+
+def fix_missing_ids():
+    sheet = get_sheet("Sheet1")
+    if not sheet: return
+    records = sheet.get_all_records()
+    rows = [['Status', 'Bedrijf', 'Prijs', 'Contact', 'Email', 'Telefoon', 'Website', 'Projectmap', 'Notities', 'Onderhoud', 'ID']]
+    seen = set(); change = False
+    for r in records:
+        cid = str(r.get('ID','')).strip()
+        if not cid or cid in seen: nid = str(uuid.uuid4()); r['ID'] = nid; change = True
+        else: nid = cid
+        seen.add(nid)
+        rows.append([r.get('Status',''), r.get('Bedrijf',''), r.get('Prijs',''), r.get('Contact',''), r.get('Email',''), r.get('Telefoon',''), r.get('Website',''), r.get('Projectmap',''), r.get('Notities',''), r.get('Onderhoud','FALSE'), nid])
+    if change: 
+        sheet.clear(); sheet.update(rows); clear_data_cache(); st.success("IDs fixed!"); st.rerun()
+    else: st.toast("IDs OK")
 
 # --- TAKEN LOGICA ---
 def load_tasks():
@@ -368,7 +440,8 @@ if 'leads_data' not in st.session_state:
     st.session_state['leads_data'] = loaded if loaded else {'col1': [], 'col2': [], 'col3': [], 'col4': [], 'trash': []}
 if 'hour_queue' not in st.session_state: st.session_state['hour_queue'] = [] 
 if 'selected_lead' not in st.session_state: st.session_state['selected_lead'] = None
-# NIEUW: Huidige pagina bijhouden
+
+# Active Page Initialisatie
 if 'active_page' not in st.session_state: st.session_state['active_page'] = 'Dashboard'
 
 all_companies = []
@@ -376,39 +449,45 @@ for col_list in st.session_state['leads_data'].values():
     for l in col_list: all_companies.append(l['name'])
 all_companies.sort()
 
-# --- APP LAYOUT ---
 
-# --- NIEUWE SIDEBAR NAVIGATIE ---
+# ==================================================
+# 🌐 DE HOVER SIDEBAR (HTML/CSS/PYTHON HACK)
+# ==================================================
 with st.sidebar:
-    try: st.image("Logo RO Marketing.png", use_column_width=True)
+    # 1. Klein logo, perfect links (width is nu 45px zodat hij in de 75px balk past)
+    try: st.image("Logo RO Marketing.png", width=45)
     except: st.warning("Logo?")
-    st.write("")
-    st.write("")
     
-    # Functie voor de knoppen, om ze 'actief' te maken
+    st.write("") # Spacer
+    
+    # 2. De Menuknoppen Functie
     def nav_button(label, icon, page_name):
-        btn_style = ""
-        if st.session_state['active_page'] == page_name:
-             # Hack: Voeg een border-left toe aan de actieve knop via markdown
-             st.markdown(f"""<style>div.stButton > button:focus {{ border-left: 4px solid {THEME_COLOR} !important; color: white !important; background: #2b313e !important; }}</style>""", unsafe_allow_html=True)
-
-        if st.button(f"{icon} {label}", key=f"nav_{page_name}", use_container_width=True):
+        is_active = (st.session_state['active_page'] == page_name)
+        # We gebruiken flink wat spaties zodat de tekst pas NA het icoon begint
+        btn_text = f"{icon}   {label}"
+        
+        # Streamlit button: Type "primary" als actief, anders "secondary"
+        if st.button(btn_text, key=f"nav_{page_name}", type="primary" if is_active else "secondary"):
             st.session_state['active_page'] = page_name
             st.rerun()
 
+    # 3. Knoppen tekenen
     nav_button("Dashboard", "📈", "Dashboard")
     nav_button("Pipeline", "📊", "Pipeline")
-    nav_button("Projecten & Taken", "✅", "Projecten")
-    nav_button("Urenregistratie", "⏱️", "Uren")
+    nav_button("Projecten", "✅", "Projecten")
+    nav_button("Uren", "⏱️", "Uren")
     nav_button("Inspiratie", "💡", "Inspiratie")
     
-    st.divider()
-    if st.button("🔄 Ververs Data", help="Haal de nieuwste gegevens op uit Google Sheets", use_container_width=True):
+    # Bottom sectie
+    st.markdown("<div style='margin-top: 50px;'></div>", unsafe_allow_html=True)
+    if st.button("🔄   Verversen", help="Haal de nieuwste gegevens op uit Google Sheets"):
         clear_data_cache()
         st.rerun()
 
 
-# ================= MAIN CONTENT AREA =================
+# ==================================================
+# 🖥️ MAIN CONTENT AREA (Op basis van actieve pagina)
+# ==================================================
 
 # ================= PAGINA 1: DASHBOARD =================
 if st.session_state['active_page'] == 'Dashboard':
@@ -430,7 +509,6 @@ if st.session_state['active_page'] == 'Dashboard':
         
         m_data = df[df['Maand'] == sel_month]
         
-        # OPMERKING: Geland is weer netjes col4 in deze versie!
         pipe_val = sum([parse_price(l.get('price')) for l in st.session_state['leads_data']['col4']])
         
         m1, m2, m3 = st.columns(3)
@@ -448,7 +526,6 @@ if st.session_state['active_page'] == 'Dashboard':
         with c_list:
             st.subheader("🔧 Contracten")
             maintenance_clients = []
-            # Doorzoek alle actieve kolommen voor onderhoud
             for col in ['col1', 'col2', 'col3', 'col4']:
                 for lead in st.session_state['leads_data'][col]:
                     if lead.get('maintenance'):
@@ -468,7 +545,7 @@ if st.session_state['active_page'] == 'Dashboard':
 elif st.session_state['active_page'] == 'Pipeline':
     st.title("📊 Pipeline Overzicht")
     
-    # --- NIEUW: Formulier in een expander BOVEN het bord ---
+    # Formulier bovenaan de pagina (in plaats van sidebar)
     with st.expander("➕ Nieuwe Deal Toevoegen", expanded=False):
         with st.form("add_lead_main"):
             c_f1, c_f2 = st.columns(2)
@@ -497,10 +574,9 @@ elif st.session_state['active_page'] == 'Pipeline':
                     st.success("Deal toegevoegd aan 'Te benaderen'!")
                     time.sleep(1); st.rerun()
 
-    # --- 1. HET NATIVE KANBAN BORD (4 FASES) ---
     st.write("")
     
-    # Precies de 4 bakjes die jij wilt
+    # De 4 Bakjes
     main_cols = [
         ('col1', 'Te benaderen'), 
         ('col2', 'Opgevolgd'), 
@@ -508,25 +584,20 @@ elif st.session_state['active_page'] == 'Pipeline':
         ('col4', 'Geland 🎉')
     ]
     
-    # Verzamel lijst voor de search
     all_leads = []
     for k, name in main_cols:
         all_leads.extend(st.session_state['leads_data'][k])
     all_leads.extend(st.session_state['leads_data']['trash'])
     
-    # Maak 4 kolommen naast elkaar op het scherm
     ui_cols = st.columns(len(main_cols))
     
     for idx, (c_key, c_name) in enumerate(main_cols):
         with ui_cols[idx]:
-            # Mooie header per bakje
             st.markdown(f"<div style='background-color:#2b313e; padding:10px; border-radius:6px; border-top:4px solid {THEME_COLOR}; text-align:center; font-weight:bold; margin-bottom:10px;'>{c_name} <span style='color:#aaa; font-size:0.9em'>({len(st.session_state['leads_data'][c_key])})</span></div>", unsafe_allow_html=True)
             
-            # SCROLLBARE CONTAINER MET MAX HEIGHT (ca. 80vh)
             with st.container(height=650, border=False):
                 for lead in st.session_state['leads_data'][c_key]:
                     with st.container(border=True):
-                        # Info weergave op het kaartje
                         dn = lead['name']
                         if lead.get('maintenance'): dn += " 🔧"
                         st.markdown(f"<div style='font-weight:bold; color:{THEME_COLOR}; font-size:1.05em; margin-bottom:5px;'>{dn}</div>", unsafe_allow_html=True)
@@ -539,7 +610,6 @@ elif st.session_state['active_page'] == 'Pipeline':
                         if info_html:
                             st.markdown(f"<div style='font-size:0.85em; color:#ccc; margin-bottom:10px; line-height:1.5;'>{info_html}</div>", unsafe_allow_html=True)
                         
-                        # Knoppen: Bekijk [Links], Pijlen [Rechts]
                         c_view, c_left, c_right = st.columns([2, 1, 1])
                         
                         if c_view.button("👁️ Bekijk", key=f"v_{lead['id']}", use_container_width=True):
@@ -556,13 +626,13 @@ elif st.session_state['active_page'] == 'Pipeline':
                                 move_lead(lead['id'], c_key, main_cols[idx+1][0])
                                 st.rerun()
 
-    # --- 2. DE PRULLENBAK UITKLAPPER ---
+    # Prullenbak
     st.write("")
     with st.expander(f"🗑️ Prullenbak ({len(st.session_state['leads_data']['trash'])} leads)", expanded=False):
         if not st.session_state['leads_data']['trash']:
             st.caption("Prullenbak is leeg.")
         else:
-            trash_cols = st.columns(4) # We zetten ze in een grid van 4
+            trash_cols = st.columns(4) 
             for t_idx, t_lead in enumerate(st.session_state['leads_data']['trash']):
                 with trash_cols[t_idx % 4]:
                     with st.container(border=True):
@@ -580,7 +650,7 @@ elif st.session_state['active_page'] == 'Pipeline':
                 save_pipeline_data(st.session_state['leads_data'])
                 st.rerun()
 
-    # --- 3. HET DETAILS/BEWERK GEDEELTE ONDERAAN ---
+    # Detailweergave onderaan
     st.divider()
     if len(all_leads) > 0:
         c_sel, c_inf = st.columns([1, 2])
@@ -636,7 +706,6 @@ elif st.session_state['active_page'] == 'Pipeline':
                             if st.button("✏️ Bewerken", key="btn_edit_mode", use_container_width=True):
                                 st.session_state['edit_mode'] = True; st.rerun()
                         with r3:
-                            # Prullenbak knop, behalve als hij al in de prullenbak zit
                             in_trash = any(l['id'] == sel['id'] for l in st.session_state['leads_data']['trash'])
                             if not in_trash:
                                 if st.button("🗑️ Prullenbak", key="btn_trash", use_container_width=True):
